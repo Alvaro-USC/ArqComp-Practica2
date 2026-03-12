@@ -99,7 +99,7 @@ int main(int argc, char *argv[]) {
      *          (declaradas dentro del bloque → privadas automáticamente)
      * ================================================================ */
     #pragma omp parallel default(none) \
-        shared(a, b, x, x_new, n, max_iter, tol, norm2, iter, converged)
+        shared(a, b, x, x_new, n, max_iter, tol, norm2, iter, converged, num_threads)
     {
         for (iter = 0; iter < max_iter && !converged; iter++) {
 
@@ -165,22 +165,13 @@ int main(int argc, char *argv[]) {
                     converged = 1;
                 }
 
-                /* ETA cada 1000 iteraciones — dentro de single para que
-                 * solo un hilo imprima (visible con: tail -f logs/*.err) */
-                if (iter > 0 && iter % 1000 == 0) {
-                    double ciclos_ahora    = get_counter();
-                    double ciclos_por_iter = ciclos_ahora / iter;
-                    double eta_seg         = ciclos_por_iter * (max_iter - iter) / 2.2e9;
-                    fprintf(stderr, "[v4] n=%d | threads=%d | iter=%d/%d | norm2=%.3e | ETA ~%.1f s\n",
-                            n, num_threads, iter, max_iter, norm2, eta_seg);
-                    fflush(stderr);
-                }
-
-                norm2 = 0.0;   /* reiniciar para la siguiente iteración */
+                norm2 = 0.0;   /* reiniciar para la siguiente iteracion */
             }
-            /* barrera implícita de omp single */
+            /* barrera implicita de omp single */
+
+           
         }
-    } /* fin región parallel */
+    } /* fin region parallel */
 
     /* ================================================================
      * FIN MEDIDA DE CICLOS

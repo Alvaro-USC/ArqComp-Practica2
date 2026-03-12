@@ -146,7 +146,7 @@ int main(int argc, char *argv[]) {
             break;
         }
 
-        /* ETA cada 1000 iteraciones (visible con: tail -f logs/*.err) */
+        /* ETA cada 1000 iteraciones (visible con: tail -f logs/JOBID.err) */
         if (iter > 0 && iter % 1000 == 0) {
             double ciclos_ahora    = get_counter();
             double ciclos_por_iter = ciclos_ahora / iter;
