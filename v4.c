@@ -101,7 +101,7 @@ int main(int argc, char *argv[]) {
     #pragma omp parallel default(none) \
         shared(a, b, x, x_new, n, max_iter, tol, norm2, iter, converged, num_threads)
     {
-        for (iter = 0; iter < max_iter && !converged; iter++) {
+        while (iter < max_iter && !converged) {
 
             /* Variable local por hilo: acumula norm2 sin contención */
             double local_norm2 = 0.0;
@@ -166,6 +166,7 @@ int main(int argc, char *argv[]) {
                 }
 
                 norm2 = 0.0;   /* reiniciar para la siguiente iteracion */
+                iter++
             }
             /* barrera implicita de omp single */
 
@@ -194,4 +195,5 @@ int main(int argc, char *argv[]) {
     free(x_new);
 
     return 0;
+
 }
