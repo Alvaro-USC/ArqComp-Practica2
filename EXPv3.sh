@@ -2,7 +2,7 @@
 #SBATCH -n 1
 #SBATCH -c 1
 #SBATCH --mem=512M
-#SBATCH -t 00:45:00
+#SBATCH -t 04:00:00
 #SBATCH --job-name jacobi_v3
 #SBATCH --output=logs/v3_%j.out
 #SBATCH --error=logs/v3_%j.err
