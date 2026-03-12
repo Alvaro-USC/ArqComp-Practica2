@@ -22,7 +22,7 @@ echo "===== Jacobi v3 (AVX256+FMA): experimentos SIMD ====="
 echo "Nodo : $(hostname)"
 echo "Fecha: $(date)"
 
-WORKDIR="$HOME/ArqComp-Practica2/ACP2"
+WORKDIR="$HOME/ArqComp-Practica2/"
 cd "$WORKDIR" || { echo "ERROR: no existe $WORKDIR"; exit 1; }
 
 mkdir -p resultados logs

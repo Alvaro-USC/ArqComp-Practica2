@@ -31,7 +31,7 @@ echo "Nodo : $(hostname)"
 echo "Fecha: $(date)"
 echo "CPUs : $(nproc)"
 
-WORKDIR="$HOME/ArqComp-Practica2/ACP2"
+WORKDIR="$HOME/ArqComp-Practica2/"
 cd "$WORKDIR" || { echo "ERROR: no existe $WORKDIR"; exit 1; }
 
 mkdir -p resultados logs

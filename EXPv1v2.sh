@@ -23,7 +23,7 @@ echo "Nodo : $(hostname)"
 echo "Fecha: $(date)"
 
 # ── Directorio de trabajo: donde están los .c y el makefile ────
-WORKDIR="$HOME/ArqComp-Practica2/ACP2"
+WORKDIR="$HOME/ArqComp-Practica2/"
 cd "$WORKDIR" || { echo "ERROR: no existe $WORKDIR"; exit 1; }
 
 mkdir -p resultados logs
