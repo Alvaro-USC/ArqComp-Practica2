@@ -1,83 +1,86 @@
 #!/bin/bash
 #SBATCH -n 1
 #SBATCH -c 1
-#SBATCH --mem=8G
-#SBATCH -t 01:00:00
+#SBATCH --mem=512M
+#SBATCH -t 01:30:00
 #SBATCH --job-name jacobi_v1v2
 #SBATCH --output=logs/v1v2_%j.out
 #SBATCH --error=logs/v1v2_%j.err
 
 # ==============================================================
-# Script de experimentación para v1 y v2 (versiones secuenciales)
+# Experimentos v1 y v2 (versiones secuenciales)
 #
-# Experimentos:
-#   · v1 compilado con -O0 y -O3  (referencia base)
-#   · v2 compilado con -O0 y -O3  (optimizaciones caché)
-#   · Tamaños: n=1250 (pequeño), 2000 (mediano), 3200 (grande)
-#   · 10 repeticiones por configuración → se toma la mediana en Python
+# Tamaños : n=1250, 2000, 3200
+# Flags   : -O0 y -O3
+# Reps    : 10 por configuración → mediana calculada en Python
 #
-# Salida: resultados/v1_O0.txt, v1_O3.txt, v2_O0.txt, v2_O3.txt
-#   Formato de cada línea: <version> <n> <iter> <norm2> <ciclos>
+# Salida  : resultados/v1_O0.txt  v1_O3.txt  v2_O0.txt  v2_O3.txt
+# Formato : <version> <n> <iter> <norm2> <ciclos>
 # ==============================================================
 
-echo "===== Jacobi v1 y v2: experimentos secuenciales ====="
-echo "Nodo: $(hostname)"
+echo "===== Jacobi v1/v2: experimentos secuenciales ====="
+echo "Nodo : $(hostname)"
 echo "Fecha: $(date)"
 
-# Crear directorios de salida
+# ── Directorio de trabajo: donde están los .c y el makefile ────
+WORKDIR="$HOME/ArqComp-Practica2/ACP2"
+cd "$WORKDIR" || { echo "ERROR: no existe $WORKDIR"; exit 1; }
+
 mkdir -p resultados logs
 
-# Tamaños de problema
 SIZES="1250 2000 3200"
 
-# ---------------------------------------------------------------
-# Compilar v1 y v2 con -O0
-# ---------------------------------------------------------------
+# ══════════════════════════════════════════════════════════════
+# BLOQUE -O0
+# ══════════════════════════════════════════════════════════════
 echo ""
-echo "--- Compilando con -O0 ---"
-make clean
-make v1 v2 CFLAGS="-O0"
+echo "── Compilando v1 y v2 con -O0 ──"
+gcc -O0 -Wall -o v1 v1.c -lm || { echo "ERROR compilando v1 -O0"; exit 1; }
+gcc -O0 -Wall -o v2 v2.c -lm || { echo "ERROR compilando v2 -O0"; exit 1; }
 
-echo ""
-echo "--- Ejecutando v1 con -O0 (10 repeticiones x 3 tamaños) ---"
+echo "── Ejecutando v1 -O0 ──"
 for N in $SIZES; do
     for i in $(seq 1 10); do
-        ./v1 $N >> resultados/v1_O0.txt
+        ./v1 "$N" >> resultados/v1_O0.txt
+    done
+done
+
+echo "── Ejecutando v2 -O0 ──"
+for N in $SIZES; do
+    for i in $(seq 1 10); do
+        ./v2 "$N" >> resultados/v2_O0.txt
+    done
+done
+
+# ══════════════════════════════════════════════════════════════
+# BLOQUE -O3
+# Recompilamos encima de los mismos binarios (no hace falta
+# borrarlos antes; simplemente se sobreescriben).
+# ══════════════════════════════════════════════════════════════
+echo ""
+echo "── Compilando v1 y v2 con -O3 ──"
+gcc -O3 -Wall -o v1 v1.c -lm || { echo "ERROR compilando v1 -O3"; exit 1; }
+gcc -O3 -Wall -o v2 v2.c -lm || { echo "ERROR compilando v2 -O3"; exit 1; }
+
+echo "── Ejecutando v1 -O3 ──"
+for N in $SIZES; do
+    for i in $(seq 1 10); do
+        ./v1 "$N" >> resultados/v1_O3.txt
+    done
+done
+
+echo "── Ejecutando v2 -O3 ──"
+for N in $SIZES; do
+    for i in $(seq 1 10); do
+        ./v2 "$N" >> resultados/v2_O3.txt
     done
 done
 
 echo ""
-echo "--- Ejecutando v2 con -O0 (10 repeticiones x 3 tamaños) ---"
-for N in $SIZES; do
-    for i in $(seq 1 10); do
-        ./v2 $N >> resultados/v2_O0.txt
-    done
+echo "===== v1/v2 finalizados ====="
+echo "Ficheros generados:"
+for f in resultados/v1_O0.txt resultados/v1_O3.txt \
+          resultados/v2_O0.txt resultados/v2_O3.txt; do
+    lines=$(wc -l < "$f" 2>/dev/null || echo 0)
+    echo "  $f  ($lines líneas)"
 done
-
-# ---------------------------------------------------------------
-# Compilar v1 y v2 con -O3
-# ---------------------------------------------------------------
-echo ""
-echo "--- Compilando con -O3 ---"
-make clean
-make v1 v2 CFLAGS="-O3"
-
-echo ""
-echo "--- Ejecutando v1 con -O3 (10 repeticiones x 3 tamaños) ---"
-for N in $SIZES; do
-    for i in $(seq 1 10); do
-        ./v1 $N >> resultados/v1_O3.txt
-    done
-done
-
-echo ""
-echo "--- Ejecutando v2 con -O3 (10 repeticiones x 3 tamaños) ---"
-for N in $SIZES; do
-    for i in $(seq 1 10); do
-        ./v2 $N >> resultados/v2_O3.txt
-    done
-done
-
-echo ""
-echo "===== Experimentos v1/v2 finalizados ====="
-echo "Resultados en: resultados/v1_O0.txt  v1_O3.txt  v2_O0.txt  v2_O3.txt"
