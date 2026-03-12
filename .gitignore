@@ -1,0 +1,39 @@
+# ── Binarios compilados ──────────────────────────────────────────
+v1
+v2
+v3
+v4
+v4_dyn
+v4_gui
+v4_crit
+
+# ── Ficheros fuente temporales generados por exp_v4.sh ───────────
+v4_dyn.c
+v4_gui.c
+v4_crit.c
+
+# ── Resultados y gráficas (datos locales, no van al repo) ────────
+resultados/
+graficas/
+logs/
+
+# ── Python ───────────────────────────────────────────────────────
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+
+# ── SLURM ────────────────────────────────────────────────────────
+*.out
+*.err
+slurm-*.out
+
+# ── Editor / OS ──────────────────────────────────────────────────
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
