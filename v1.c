@@ -50,7 +50,7 @@ int main(int argc, char *argv[]) {
     }
 
     /* Matriz diagonal inicializada aleatoriamente */
-    srand(100);
+    srand(42);
     for (int i = 0; i < n; i++) {
         double row_sum = 0.0;
         for (int j = 0; j < n; j++) {
@@ -97,6 +97,16 @@ int main(int argc, char *argv[]) {
         /* Criterio de convergencia */
         if (sqrt(norm2) < tol) {
             break;
+        }
+
+        /* ETA cada 1000 iteraciones (visible con: tail -f logs/*.out) */
+        if (iter > 0 && iter % 1000 == 0) {
+            double ciclos_ahora    = get_counter();          /* ciclos acumulados */
+            double ciclos_por_iter = ciclos_ahora / iter;    /* media por iteración */
+            double eta_seg         = ciclos_por_iter * (max_iter - iter) / 2.2e9;
+            fprintf(stderr, "[v1] n=%d | iter=%d/%d | norm2=%.3e | ETA ~%.1f s\n",
+                    n, iter, max_iter, norm2, eta_seg);
+            fflush(stderr);
         }
     }
 

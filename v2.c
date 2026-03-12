@@ -145,6 +145,16 @@ int main(int argc, char *argv[]) {
         if (sqrt(norm2) < tol) {
             break;
         }
+
+        /* ETA cada 1000 iteraciones (visible con: tail -f logs/*.err) */
+        if (iter > 0 && iter % 1000 == 0) {
+            double ciclos_ahora    = get_counter();
+            double ciclos_por_iter = ciclos_ahora / iter;
+            double eta_seg         = ciclos_por_iter * (max_iter - iter) / 2.2e9;
+            fprintf(stderr, "[v2] n=%d | iter=%d/%d | norm2=%.3e | ETA ~%.1f s\n",
+                    n, iter, max_iter, norm2, eta_seg);
+            fflush(stderr);
+        }
     }
 
     /* ================================================================
