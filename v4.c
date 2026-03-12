@@ -166,7 +166,7 @@ int main(int argc, char *argv[]) {
                 }
 
                 norm2 = 0.0;   /* reiniciar para la siguiente iteracion */
-                iter++
+                iter++;
             }
             /* barrera implicita de omp single */
 
@@ -197,3 +197,4 @@ int main(int argc, char *argv[]) {
     return 0;
 
 }
+
