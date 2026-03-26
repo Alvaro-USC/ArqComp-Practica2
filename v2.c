@@ -27,7 +27,7 @@
 
 int main(int argc, char *argv[]) {
 
-    /* ---------- Comprobación del argumento obligatorio n ---------- */
+    /* Comprobación del argumento n */
     if (argc < 2) {
         fprintf(stderr, "Uso: %s <n> [c]\n", argv[0]);
         return 1;
@@ -41,7 +41,6 @@ int main(int argc, char *argv[]) {
     const double tol      = 1e-5;
     const int    max_iter = 15000;
 
-    /* ---------- Reserva dinámica de memoria ---------- */
     double *a     = (double *)malloc((size_t)n * n * sizeof(double));
     double *b     = (double *)malloc((size_t)n     * sizeof(double));
     double *x     = (double *)malloc((size_t)n     * sizeof(double));
@@ -53,7 +52,6 @@ int main(int argc, char *argv[]) {
         return 1;
     }
 
-    /* ---------- Inicialización idéntica a v1 ---------- */
     srand(42);
     for (int i = 0; i < n; i++) {
         double row_sum = 0.0;
@@ -67,9 +65,6 @@ int main(int argc, char *argv[]) {
         x[i] = 0.0;
     }
 
-    /* ================================================================
-     * INICIO MEDIDA DE CICLOS
-     * ================================================================ */
     start_counter();
 
     double norm2 = 0.0;
@@ -139,14 +134,13 @@ int main(int argc, char *argv[]) {
             }
         }
 
-        /* x = x_new */
         memcpy(x, x_new, (size_t)n * sizeof(double));
 
         if (sqrt(norm2) < tol) {
             break;
         }
 
-        /* ETA cada 1000 iteraciones (visible con: tail -f logs/JOBID.err) */
+        /* Para ver cuántas horas tarda*/
         if (iter > 0 && iter % 1000 == 0) {
             double ciclos_ahora    = get_counter();
             double ciclos_por_iter = ciclos_ahora / iter;
@@ -157,9 +151,6 @@ int main(int argc, char *argv[]) {
         }
     }
 
-    /* ================================================================
-     * FIN MEDIDA DE CICLOS
-     * ================================================================ */
     double ciclos = get_counter();
 
     printf("v2 %d %d %.6e %.0f\n", n, iter, norm2, ciclos);
