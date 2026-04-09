@@ -29,7 +29,7 @@
 
 int main(int argc, char *argv[]) {
 
-    /* ---------- Comprobación del argumento obligatorio n ---------- */
+    /* Comprobación del argumento obligatorio n */
     if (argc < 2) {
         fprintf(stderr, "Uso: %s <n> [c]\n", argv[0]);
         return 1;
@@ -40,7 +40,7 @@ int main(int argc, char *argv[]) {
         return 1;
     }
 
-    /* ---------- Argumento c: número de hilos (obligatorio comprobar en v4) --- */
+    /* Argumento c: número de hilos */
     int num_threads = 1;
     if (argc >= 3) {
         num_threads = atoi(argv[2]);
@@ -51,7 +51,7 @@ int main(int argc, char *argv[]) {
     const double tol      = 1e-5;
     const int    max_iter = 15000;
 
-    /* ---------- Reserva dinámica de memoria ---------- */
+    /* Reserva dinámica de memoria */
     double *a     = (double *)malloc((size_t)n * n * sizeof(double));
     double *b     = (double *)malloc((size_t)n     * sizeof(double));
     double *x     = (double *)malloc((size_t)n     * sizeof(double));
@@ -63,7 +63,7 @@ int main(int argc, char *argv[]) {
         return 1;
     }
 
-    /* ---------- Inicialización con valores aleatorios (misma semilla) ---------- */
+    /* Inicialización con valores aleatorios */
     srand(42);
     for (int i = 0; i < n; i++) {
         double row_sum = 0.0;
@@ -77,27 +77,21 @@ int main(int argc, char *argv[]) {
         x[i] = 0.0;
     }
 
-    /* ================================================================
-     * INICIO MEDIDA DE CICLOS
+    /* INICIO MEDIDA DE CICLOS
      * Incluye TODA la región parallel para medir el overhead OpenMP
-     * frente a v2 secuencial.
-     * ================================================================ */
+     * frente a v2 secuencial. */
     start_counter();
 
     double norm2    = 0.0;
     int    iter     = 0;
     int    converged = 0;
 
-    /* ================================================================
-     * REGIÓN PARALLEL EXTERIOR  (característica 1)
-     *
+    /* REGIÓN PARALLEL EXTERIOR  (característica 1)
      * Los hilos se crean aquí una sola vez y no se destruyen hasta
      * cerrar la llave de esta región.
-     *
      * shared : a, b, x, x_new, n, max_iter, tol, norm2, iter, converged
      * private: i, j, sigma, diff, local_norm2, row
-     *          (declaradas dentro del bloque → privadas automáticamente)
-     * ================================================================ */
+     *          (declaradas dentro del bloque → privadas automáticamente)*/
     #pragma omp parallel default(none) \
         shared(a, b, x, x_new, n, max_iter, tol, norm2, iter, converged, num_threads)
     {
@@ -106,8 +100,7 @@ int main(int argc, char *argv[]) {
             /* Variable local por hilo: acumula norm2 sin contención */
             double local_norm2 = 0.0;
 
-            /* --------------------------------------------------------
-             * omp for: reparte las filas i entre hilos.
+            /* omp for: reparte las filas i entre hilos.
              *
              * schedule(static)   : reparto fijo, mínimo overhead.
              *   Para probar otros modos, sustituir por:
@@ -115,8 +108,7 @@ int main(int argc, char *argv[]) {
              *     schedule(guided)        bloques decrecientes
              *
              * nowait: no hay barrera implícita al salir del for;
-             *   la sincronización la gestiona omp barrier más adelante.
-             * -------------------------------------------------------- */
+             *   la sincronización la gestiona omp barrier más adelante.*/
             #pragma omp for schedule(static) nowait
             for (int i = 0; i < n; i++) {
 

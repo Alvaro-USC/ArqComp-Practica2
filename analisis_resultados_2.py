@@ -290,4 +290,28 @@ fig.suptitle("G6 – Reducción atomic vs critical (speedup vs 1 hilo)", fontsiz
 plt.tight_layout()
 save("g6_atomic_vs_critical")
 
+# ══════════════════════════════════════════════════════════════
+# G7 – Eficiencia paralela  E = Speedup / nº_hilos
+# ══════════════════════════════════════════════════════════════
+fig, ax = plt.subplots(figsize=(8, 5))
+for i, n in enumerate(SIZES):
+    base = v4_static.get((n, 1))
+    if base is None:
+        continue
+    eficiencias = []
+    for t in THREADS:
+        sp = base / v4_static.get((n, t), base)
+        eficiencias.append(sp / t)
+    ax.plot(THREADS, eficiencias, marker="o", linewidth=2,
+            color=COLORS[i], label=f"n={n}")
+
+ax.axhline(1.0, linestyle="--", color="black", linewidth=1.2, label="Ideal (E=1)")
+ax.set_xlabel("Número de hilos")
+ax.set_ylabel("Eficiencia  E = Speedup / T")
+ax.set_title("G7 – Eficiencia paralela v4-O3 (schedule static)\nE = Speedup / nº_hilos")
+ax.set_xticks(THREADS)
+ax.set_ylim(0, 1.2)
+ax.legend()
+save("g7_eficiencia_paralela")
+
 print("\nTodas las gráficas generadas en graficas/")

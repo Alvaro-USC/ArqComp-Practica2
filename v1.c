@@ -43,7 +43,7 @@ int main(int argc, char *argv[]) {
     double *x = (double *)malloc((size_t)n * sizeof(double));
     double *x_new = (double *)malloc((size_t)n * sizeof(double));
 
-    if (!a || !b || !x || !x_new) {
+    if (!a || !b || !x || !x_new) {  
         fprintf(stderr, "Error: fallo en la reserva de memoria.\n");
         free(a); free(b); free(x); free(x_new);
         return 1;

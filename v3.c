@@ -31,7 +31,6 @@
 
 int main(int argc, char *argv[]) {
 
-    /* ---------- Comprobación del argumento obligatorio n ---------- */
     if (argc < 2) {
         fprintf(stderr, "Uso: %s <n> [c]\n", argv[0]);
         return 1;
@@ -45,14 +44,14 @@ int main(int argc, char *argv[]) {
     const double tol      = 1e-5;
     const int    max_iter = 15000;
 
-    /* ---------- Stride con padding ----------
+    /* Stride con padding
      * n_pad: múltiplo de AVX_W >= n.
      * Cada fila de la matriz ocupa n_pad doubles, de modo que con la
      * base alineada a 32 B, cada inicio de fila también lo está.
      */
     int n_pad = ((n + AVX_W - 1) / AVX_W) * AVX_W;
 
-    /* ---------- Reserva dinámica alineada a 32 B (C11 aligned_alloc) ----------
+    /* Reserva dinámica alineada a 32 B (C11 aligned_alloc)
      * aligned_alloc exige que el tamaño sea múltiplo de la alineación.
      */
     const size_t align = 32;
@@ -77,7 +76,7 @@ int main(int argc, char *argv[]) {
     memset(x,     0, sz_x);
     memset(x_new, 0, sz_x);
 
-    /* ---------- Inicialización con valores aleatorios (misma semilla) ---------- */
+    /* Inicialización con valores aleatorios (misma semilla) */
     srand(42);
     for (int i = 0; i < n; i++) {
         double row_sum = 0.0;
@@ -91,10 +90,10 @@ int main(int argc, char *argv[]) {
         x[i] = 0.0;
     }
 
-    /* ================================================================
+    /* 
      * INICIO MEDIDA DE CICLOS
      * Se incluye todo el cómputo AVX para contabilizar su overhead.
-     * ================================================================ */
+     */
     start_counter();
 
     double norm2 = 0.0;
@@ -112,9 +111,9 @@ int main(int argc, char *argv[]) {
             __m256d vsigma      = _mm256_setzero_pd();
             double  scalar_sigma = 0.0;
 
-            /* ============================================================
+            /* 
              * PARTE IZQUIERDA: j en [0, i)
-             * ============================================================ */
+             */
             int j = 0;
 
             /* Prólogo escalar: avanzar hasta primer múltiplo de AVX_W <= i */
@@ -135,9 +134,9 @@ int main(int argc, char *argv[]) {
                 scalar_sigma += row[j] * x[j];
             }
 
-            /* ============================================================
+            /*
              * PARTE DERECHA: j en (i, n)
-             * ============================================================ */
+             */
             j = i + 1;
 
             /* Prólogo escalar: avanzar hasta siguiente múltiplo de AVX_W */
@@ -158,11 +157,11 @@ int main(int argc, char *argv[]) {
                 scalar_sigma += row[j] * x[j];
             }
 
-            /* ============================================================
+            /*
              * REDUCCIÓN HORIZONTAL de vsigma → un solo double
              * hadd: [v0+v1, v2+v3 | v0+v1, v2+v3]
              * Suma lane baja + lane alta para obtener v0+v1+v2+v3.
-             * ============================================================ */
+             */
             __m256d vhadd = _mm256_hadd_pd(vsigma, vsigma);
             __m128d vlow  = _mm256_castpd256_pd128(vhadd);
             __m128d vhigh = _mm256_extractf128_pd(vhadd, 1);
@@ -193,9 +192,9 @@ int main(int argc, char *argv[]) {
         }
     }
 
-    /* ================================================================
+    /*
      * FIN MEDIDA DE CICLOS
-     * ================================================================ */
+     */
     double ciclos = get_counter();
 
     printf("v3 %d %d %.6e %.0f\n", n, iter, norm2, ciclos);
