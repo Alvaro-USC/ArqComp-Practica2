@@ -1,139 +1,117 @@
 #!/bin/bash
 #SBATCH -n 1
-#SBATCH -c 64
-#SBATCH --mem=512M
-#SBATCH -t 06:00:00
+#SBATCH -c 1
+#SBATCH --mem=1G
+#SBATCH -t 08:00:00
 #SBATCH --job-name jacobi_v4
 #SBATCH --output=logs/v4_%j.out
 #SBATCH --error=logs/v4_%j.err
 
 # ==============================================================
-# Experimentos v4 (OpenMP)
+# Experimentos v4 (SIMD AVX256 + FMA)
 #
 # Tamaños : n=1250, 2000, 3200
-# Hilos   : 1 2 4 8 16 32
-# Variantes:
-#   · static   (v4.c tal cual)
-#   · dynamic  (sed sobre v4.c → v4_dyn.c)
-#   · guided   (sed sobre v4.c → v4_gui.c)
-#   · critical (sed sobre v4.c → v4_crit.c)
-# Reps    : 10 por configuración
+# Flags   : -O0 y -O3  (junto con -mavx2 -mfma)
+# Reps    : 10 por configuración → mediana calculada en Python
 #
-# Salida  : resultados/v4_O3_static.txt
-#           resultados/v4_O3_dynamic.txt
-#           resultados/v4_O3_guided.txt
-#           resultados/v4_O3_critical.txt
-# Formato : v4 <n> <threads> <iter> <norm2> <ciclos>
+# Salida  : resultados/v4_O0.txt  v4_O3.txt
+# Formato : v4 <n> <iter> <norm2> <ciclos>
+#
+# Líneas esperadas por fichero: 30  (3 tamaños × 10 reps)
+# Tiempo estimado worst-case  : ~6 h  (v4 -O0 n=3200 × 10 reps)
 # ==============================================================
 
-echo "===== Jacobi v4 (OpenMP): experimentos paralelos ====="
+echo "===== Jacobi v4 (AVX256+FMA): experimentos SIMD ====="
 echo "Nodo : $(hostname)"
 echo "Fecha: $(date)"
 echo "CPUs : $(nproc)"
 
+# ── Directorio de trabajo: donde están los .c, makefile y counter.h ──
 WORKDIR="$HOME/ArqComp-Practica2/"
 cd "$WORKDIR" || { echo "ERROR: no existe $WORKDIR"; exit 1; }
 
 mkdir -p resultados logs
 
 SIZES="1250 2000 3200"
-THREADS="1 2 4 8 16 32"
+REPS=10
+EXPECTED=$((3 * REPS))   # 30 líneas por fichero
+
+# ── Inicializar ficheros de resultados a vacío ─────────────────
+# Si el job se relanza, los ficheros se sobreescriben en lugar
+# de acumular resultados de ejecuciones anteriores.
+for f in resultados/v4_O0.txt resultados/v4_O3.txt; do
+    > "$f"
+done
 
 # ══════════════════════════════════════════════════════════════
-# VARIANTE 1: schedule(static) + atomic  ← v4.c original
+# BLOQUE -O0
+# A -O0 los intrínsecos AVX se emiten igualmente (son llamadas a
+# funciones intrínsecas, no dependen del nivel de optimización),
+# pero el compilador no vectorizará automáticamente nada extra.
 # ══════════════════════════════════════════════════════════════
 echo ""
-echo "── Compilando v4 -O3 schedule(static) + atomic ──"
-gcc -O3 -fopenmp -Wall -o v4_static v4.c -lm \
-    || { echo "ERROR compilando v4_static"; exit 1; }
+echo "── Compilando v4 con -O0 -mavx2 -mfma ──"
 
-echo "── Ejecutando v4_static ──"
+# Se borra el binario anterior para evitar que un fallo de compilación
+# silencioso deje el binario equivocado ejecutándose en el bloque -O3.
+rm -f v4
+
+gcc -O0 -mavx2 -mfma -Wall -I. -o v4 v4.c -lm \
+    || { echo "ERROR compilando v4 -O0"; exit 1; }
+
+echo "── Ejecutando v4 -O0 ──"
 for N in $SIZES; do
-    for T in $THREADS; do
-        for i in $(seq 1 10); do
-            ./v4_static "$N" "$T" >> resultados/v4_O3_static.txt
-        done
+    echo "   n=$N"
+    for i in $(seq 1 $REPS); do
+        ./v4 "$N" >> resultados/v4_O0.txt
     done
 done
 
 # ══════════════════════════════════════════════════════════════
-# VARIANTE 2: schedule(dynamic,16)
-# Se genera v4_dyn.c sustituyendo schedule(static) por schedule(dynamic,16)
+# BLOQUE -O3
+# Con -O3 el compilador puede reorganizar y vectorizar el código
+# escalar adicional (prólogos/epílogos). Los intrínsecos AVX
+# explícitos se mantienen intactos.
 # ══════════════════════════════════════════════════════════════
 echo ""
-echo "── Generando y compilando v4_dyn (schedule dynamic) ──"
-sed 's/schedule(static)/schedule(dynamic,16)/g' v4.c > v4_dyn.c
-gcc -O3 -fopenmp -Wall -o v4_dyn v4_dyn.c -lm \
-    || { echo "ERROR compilando v4_dyn"; exit 1; }
+echo "── Compilando v4 con -O3 -mavx2 -mfma ──"
 
-echo "── Ejecutando v4_dyn ──"
+rm -f v4
+
+gcc -O3 -mavx2 -mfma -Wall -I. -o v4 v4.c -lm \
+    || { echo "ERROR compilando v4 -O3"; exit 1; }
+
+echo "── Ejecutando v4 -O3 ──"
 for N in $SIZES; do
-    for T in $THREADS; do
-        for i in $(seq 1 10); do
-            ./v4_dyn "$N" "$T" >> resultados/v4_O3_dynamic.txt
-        done
+    echo "   n=$N"
+    for i in $(seq 1 $REPS); do
+        ./v4 "$N" >> resultados/v4_O3.txt
     done
 done
 
-# ══════════════════════════════════════════════════════════════
-# VARIANTE 3: schedule(guided)
-# ══════════════════════════════════════════════════════════════
+# ── Limpiar binario ────────────────────────────────────────────
+rm -f v4
+
+# ── Resumen con verificación de líneas esperadas ───────────────
 echo ""
-echo "── Generando y compilando v4_gui (schedule guided) ──"
-sed 's/schedule(static)/schedule(guided)/g' v4.c > v4_gui.c
-gcc -O3 -fopenmp -Wall -o v4_gui v4_gui.c -lm \
-    || { echo "ERROR compilando v4_gui"; exit 1; }
-
-echo "── Ejecutando v4_gui ──"
-for N in $SIZES; do
-    for T in $THREADS; do
-        for i in $(seq 1 10); do
-            ./v4_gui "$N" "$T" >> resultados/v4_O3_guided.txt
-        done
-    done
-done
-
-# ══════════════════════════════════════════════════════════════
-# VARIANTE 4: critical en lugar de atomic
-# En v4.c la reducción tiene este aspecto:
-#   #pragma omp atomic
-#   norm2 += local_norm2;
-# La sustituimos por:
-#   #pragma omp critical
-#   { norm2 += local_norm2; }
-# usando un bloque de sed multilínea.
-# ══════════════════════════════════════════════════════════════
-echo ""
-echo "── Generando y compilando v4_crit (reducción critical) ──"
-# Reemplaza las dos líneas "atomic + norm2 +=" por el bloque critical
-sed '/^.*#pragma omp atomic/{
-    N
-    s/.*#pragma omp atomic\n.*norm2 += local_norm2;/            #pragma omp critical\n            { norm2 += local_norm2; }/
-}' v4.c > v4_crit.c
-
-gcc -O3 -fopenmp -Wall -o v4_crit v4_crit.c -lm \
-    || { echo "ERROR compilando v4_crit — revisar v4_crit.c manualmente"; }
-
-if [ -x ./v4_crit ]; then
-    echo "── Ejecutando v4_crit ──"
-    for N in $SIZES; do
-        for T in $THREADS; do
-            for i in $(seq 1 10); do
-                ./v4_crit "$N" "$T" >> resultados/v4_O3_critical.txt
-            done
-        done
-    done
-else
-    echo "AVISO: v4_crit no se ejecutó (fallo de compilación)"
-fi
-
-# ── Limpiar ficheros temporales ────────────────────────────────
-rm -f v4_dyn v4_dyn.c v4_gui v4_gui.c v4_crit v4_crit.c v4_static
-
-echo ""
-echo "===== v4 finalizado ====="
-for f in resultados/v4_O3_static.txt  resultados/v4_O3_dynamic.txt \
-          resultados/v4_O3_guided.txt  resultados/v4_O3_critical.txt; do
+echo "===== v4 finalizado  ($(date)) ====="
+echo "Líneas esperadas por fichero: $EXPECTED  (3 tamaños × $REPS reps)"
+all_ok=1
+for f in resultados/v4_O0.txt resultados/v4_O3.txt; do
     lines=$(wc -l < "$f" 2>/dev/null || echo 0)
-    echo "  $f  ($lines líneas)"
+    if [ "$lines" -lt "$EXPECTED" ]; then
+        echo "  AVISO: $f — $lines líneas (esperadas $EXPECTED)"
+        all_ok=0
+    else
+        echo "  OK    $f — $lines líneas"
+    fi
 done
+
+if [ "$all_ok" -eq 1 ]; then
+    echo ""
+    echo "Todos los ficheros completos. Listo para análisis."
+else
+    echo ""
+    echo "AVISO: algún fichero tiene menos líneas de las esperadas."
+    echo "Revisar logs/v4_${SLURM_JOB_ID}.err para errores de ejecución."
+fi
