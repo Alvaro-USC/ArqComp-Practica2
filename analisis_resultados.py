@@ -403,4 +403,11 @@ if not med_v3_static.empty:
     max_t = med_v3_static["threads"].max()
     for T in [1, max_t]:
         vals = [get_ciclos(med_v3_static, n, T) for n in SIZES]
-        formatted = ["
+        formatted = ["  N/A" if np.isnan(v) else f"{v/1e9:>12.3f}G" for v in vals]
+        print(f"{'v3 -O3 (OMP) '+str(T)+'h':<18}  {'  '.join(formatted)}")
+
+print("══════════════════════════════════════════════════════")
+print(f"\nGráficas guardadas en: {PLOTS_DIR}/")
+print("Ficheros generados:")
+for f in sorted(os.listdir(PLOTS_DIR)):
+    print(f"  {f}")
