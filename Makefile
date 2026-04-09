@@ -1,4 +1,4 @@
-# Probar con -O0 y -O3
+
 all: v1 v2 v3 v4
 
 v1: v1.c
@@ -8,10 +8,11 @@ v2: v2.c
 	$(CC) $(CFLAGS) -Wall -o v2 v2.c -lm
 	
 v3: v3.c
-	$(CC) $(CFLAGS) -mavx2 -mfma -Wall -o v3 v3.c -lm
+	$(CC) $(CFLAGS) -fopenmp -Wall -o v3 v3.c -lm
 	
 v4: v4.c
-	$(CC) $(CFLAGS) -fopenmp -Wall -o v4 v4.c -lm
+	$(CC) $(CFLAGS) -mavx2 -mfma -Wall -o v4 v4.c -lm
+
 
 run: v1 v2 v3 v4
 	./v1 $(ARGS)
@@ -21,4 +22,3 @@ run: v1 v2 v3 v4
 
 clean:
 	rm -f v1 v2 v3 v4
-	

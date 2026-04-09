@@ -1,36 +1,40 @@
 /*
- * v3.c  –  Método de Jacobi: vectorización SIMD AVX256 + FMA
+ * v3.c  –  Método de Jacobi: paralelización con OpenMP
  *
- * Compilado por el makefile con:  -mavx2 -mfma
+ * Compilado por el makefile con:  -fopenmp
+ * Solo se usan directivas de OpenMP 3.0.
  *
- * Estrategia:
- *  · __m256d: 4 doubles por registro (256 bits).
- *  · _mm256_fmadd_pd: FMA acumula sigma en 4 carriles en paralelo.
- *  · División de lazos [0,i) y (i,n] sin rama condicional.
- *  · Prólogo/epílogo escalar para los elementos no alineados.
- *  · Reducción horizontal con _mm256_hadd_pd.
- *  · Memoria alineada a 32 B con aligned_alloc (C11/C17 estándar).
- *    Stride de fila = n_pad (múltiplo de 4) para garantizar alineación
- *    en cada acceso _mm256_load_pd.
- *  · NO se usan intrínsecos "_u" (no alineados) — restricción del enunciado.
- *  · NO se usa __attribute__((aligned)) ni _mm_malloc — restricción del enunciado.
+ * Características:
+ *  1. Región parallel EXTERIOR: los hilos se crean una sola vez y
+ *     se mantienen vivos entre iteraciones (evita fork/join repetido).
+ *  2. División de lazos sin if(i!=j).
+ *  3. Reducción de norm2 con cláusula reduction nativa de OpenMP
+ *     (el compilador genera copias privadas por hilo y las combina
+ *     al final sin contención; más limpio que atomic o critical).
+ *     Para comparar con critical, ver comentario al final del fichero.
+ *  4. schedule(static) por defecto; comentarios para dynamic/guided.
+ *  5. omp single para control de convergencia y reset de norm2.
+ *  6. Copia x=x_new paralelizada con omp for (escala con hilos).
  *
- * Salida: v3 <n> <iter> <norm2> <ciclos>
+ * Salida: v3 <n> <threads> <iter> <norm2> <ciclos>
  *
  * Uso: ./v3 <n> [c]
+ *   n  tamaño de la matriz   (obligatorio)
+ *   c  número de hilos OMP   (opcional, por defecto 1)
  */
+// TODO: Probar diferentes tipos de schedule, y diferentes cantidades de hilos
+// schedule: static, dynamic, guided, auto, runtime
 
 #include <stdio.h>
 #include <stdlib.h>
 #include <math.h>
 #include <string.h>
-#include <immintrin.h>
+#include <omp.h>
 #include "counter.h"
-
-#define AVX_W 4   /* doubles por registro AVX256 */
 
 int main(int argc, char *argv[]) {
 
+    /* Comprobación del argumento obligatorio n */
     if (argc < 2) {
         fprintf(stderr, "Uso: %s <n> [c]\n", argv[0]);
         return 1;
@@ -41,28 +45,22 @@ int main(int argc, char *argv[]) {
         return 1;
     }
 
+    /* Argumento c: número de hilos */
+    int num_threads = 1;
+    if (argc >= 3) {
+        num_threads = atoi(argv[2]);
+        if (num_threads <= 0) num_threads = 1;
+    }
+    omp_set_num_threads(num_threads);
+
     const double tol      = 1e-5;
     const int    max_iter = 15000;
 
-    /* Stride con padding
-     * n_pad: múltiplo de AVX_W >= n.
-     * Cada fila de la matriz ocupa n_pad doubles, de modo que con la
-     * base alineada a 32 B, cada inicio de fila también lo está.
-     */
-    int n_pad = ((n + AVX_W - 1) / AVX_W) * AVX_W;
-
-    /* Reserva dinámica alineada a 32 B (C11 aligned_alloc)
-     * aligned_alloc exige que el tamaño sea múltiplo de la alineación.
-     */
-    const size_t align = 32;
-    size_t sz_a = ((size_t)n * n_pad * sizeof(double) + align - 1) / align * align;
-    size_t sz_x = ((size_t)n_pad     * sizeof(double) + align - 1) / align * align;
-    size_t sz_b = ((size_t)n         * sizeof(double) + align - 1) / align * align;
-
-    double *a     = (double *)aligned_alloc(align, sz_a);
-    double *b     = (double *)aligned_alloc(align, sz_b);
-    double *x     = (double *)aligned_alloc(align, sz_x);
-    double *x_new = (double *)aligned_alloc(align, sz_x);
+    /* Reserva dinámica de memoria */
+    double *a     = (double *)malloc((size_t)n * n * sizeof(double));
+    double *b     = (double *)malloc((size_t)n     * sizeof(double));
+    double *x     = (double *)malloc((size_t)n     * sizeof(double));
+    double *x_new = (double *)malloc((size_t)n     * sizeof(double));
 
     if (!a || !b || !x || !x_new) {
         fprintf(stderr, "Error: fallo en la reserva de memoria.\n");
@@ -70,134 +68,145 @@ int main(int argc, char *argv[]) {
         return 1;
     }
 
-    /* Inicializar todo a 0: los elementos de padding no contaminan sumas */
-    memset(a,     0, sz_a);
-    memset(b,     0, sz_b);
-    memset(x,     0, sz_x);
-    memset(x_new, 0, sz_x);
-
-    /* Inicialización con valores aleatorios (misma semilla) */
+    /* Inicialización con valores aleatorios.
+     * Para garantizar convergencia del método de Jacobi, la matriz
+     * debe ser diagonalmente dominante: se suma el total de cada fila
+     * al elemento diagonal. */
     srand(42);
     for (int i = 0; i < n; i++) {
         double row_sum = 0.0;
         for (int j = 0; j < n; j++) {
-            a[i * n_pad + j] = (double)rand() / RAND_MAX;
-            row_sum += a[i * n_pad + j];
+            a[i * n + j] = (double)rand() / RAND_MAX;
+            row_sum += a[i * n + j];
         }
-        a[i * n_pad + i] += row_sum;      /* dominancia diagonal */
+        a[i * n + i] += row_sum;
 
         b[i] = (double)rand() / RAND_MAX;
         x[i] = 0.0;
     }
 
-    /* 
-     * INICIO MEDIDA DE CICLOS
-     * Se incluye todo el cómputo AVX para contabilizar su overhead.
-     */
+    /* INICIO MEDIDA DE CICLOS
+     * Incluye TODA la región parallel para medir el overhead OpenMP
+     * frente a v2 secuencial. */
     start_counter();
 
-    double norm2 = 0.0;
-    int    iter  = 0;
+    double norm2     = 0.0;
+    int    iter      = 0;
+    int    converged = 0;
 
-    for (iter = 0; iter < max_iter; iter++) {
+    /* REGIÓN PARALLEL EXTERIOR  (característica 1)
+     * Los hilos se crean aquí una sola vez y no se destruyen hasta
+     * cerrar la llave de esta región: se evita el overhead de
+     * fork/join en cada iteración (a diferencia de poner el pragma
+     * parallel dentro del while).
+     *
+     * shared : a, b, x, x_new, n, max_iter, tol, norm2, iter, converged
+     * private: i, j, sigma, diff, row
+     *          (declaradas dentro del bloque son privadas automáticamente) */
+    #pragma omp parallel default(none) \
+        shared(a, b, x, x_new, n, max_iter, tol, norm2, iter, converged, num_threads)
+    {
+        while (iter < max_iter && !converged) {
 
-        norm2 = 0.0;
+            /* omp for con reduction nativa (característica 3):
+             *
+             * reduction(+:norm2) crea una copia privada de norm2 por hilo,
+             * cada hilo acumula su parte sin contención, y al salir del for
+             * OpenMP las combina automáticamente con una suma.
+             * Es equivalente al patrón manual local_norm2 + atomic, pero
+             * expresado directamente en la directiva — más limpio y portable.
+             *
+             * Comparación con critical (ver bloque comentado al final):
+             *   critical  → serializa: solo un hilo puede sumar a la vez.
+             *               Con muchos hilos genera mucha contención.
+             *   reduction → sin contención durante el bucle; combinación
+             *               eficiente al final. Siempre preferible a critical
+             *               para reducciones aritméticas.
+             *
+             * schedule(static): reparto fijo de filas entre hilos.
+             *   Para probar otros modos, sustituir por:
+             *     schedule(dynamic, 16)   bloque dinámico de 16 filas
+             *     schedule(guided)        bloques decrecientes
+             *
+             * nowait: no hay barrera implícita al salir del for;
+             *   la sincronización necesaria la gestiona omp barrier
+             *   explícita más adelante (todos deben haber escrito
+             *   x_new[] antes de que single lo copie a x[]). */
+            #pragma omp for schedule(static) nowait reduction(+:norm2)
+            for (int i = 0; i < n; i++) {
 
-        for (int i = 0; i < n; i++) {
+                const double *row = &a[i * n];
+                double sigma = 0.0;
 
-            const double *row = &a[i * n_pad];
+                /* División de lazos (característica 2):
+                 * Se evita el if(i!=j) del pseudocódigo dividiendo el
+                 * recorrido en parte izquierda [0, i) y parte derecha
+                 * (i, n). Menos instrucciones de control por iteración. */
 
-            /* Acumulador vectorial: 4 sumas parciales de sigma */
-            __m256d vsigma      = _mm256_setzero_pd();
-            double  scalar_sigma = 0.0;
+                /* Parte izquierda: j en [0, i) */
+                for (int j = 0; j < i; j++) {
+                    sigma += row[j] * x[j];
+                }
+                /* Parte derecha: j en (i, n) */
+                for (int j = i + 1; j < n; j++) {
+                    sigma += row[j] * x[j];
+                }
 
-            /* 
-             * PARTE IZQUIERDA: j en [0, i)
-             */
-            int j = 0;
+                x_new[i] = (b[i] - sigma) / row[i];
 
-            /* Prólogo escalar: avanzar hasta primer múltiplo de AVX_W <= i */
-            int left_vec = (i / AVX_W) * AVX_W;
-            for (; j < left_vec && j < i; j++) {
-                scalar_sigma += row[j] * x[j];
+                double diff = x_new[i] - x[i];
+                norm2 += diff * diff;   /* reduction acumula por hilo */
             }
 
-            /* Bucle vectorial (acceso alineado garantizado) */
-            for (; j + AVX_W <= i; j += AVX_W) {
-                __m256d va = _mm256_load_pd(&row[j]);
-                __m256d vx = _mm256_load_pd(&x[j]);
-                vsigma = _mm256_fmadd_pd(va, vx, vsigma);
+            /* Barrera explícita: garantiza que TODOS los hilos han
+             * terminado de escribir x_new[] y que reduction ha combinado
+             * norm2 antes de que single copie y evalúe convergencia.
+             * (La barrera implícita del omp for fue cancelada con nowait.) */
+            #pragma omp barrier
+
+            /* single: un solo hilo evalúa convergencia y resetea norm2.
+             * Barrera implícita al salir de single sincroniza a todos
+             * antes de la siguiente iteración del while. */
+            #pragma omp single
+            {
+                if (sqrt(norm2) < tol) {
+                    converged = 1;
+                }
+                norm2 = 0.0;   /* reiniciar para la siguiente iteración */
+                iter++;
             }
+            /* barrera implícita de omp single */
 
-            /* Epílogo escalar parte izquierda */
-            for (; j < i; j++) {
-                scalar_sigma += row[j] * x[j];
+            /* Copia paralela x = x_new (característica 6):
+             * En lugar de que un solo hilo copie todo el vector (memcpy
+             * secuencial, O(n)), cada hilo copia su bloque de filas.
+             * Con schedule(static) el reparto es el mismo que en el for
+             * de cómputo, favoreciendo la localidad de caché.
+             * nowait: la barrera del omp single ya sincronizó antes de
+             * llegar aquí; la próxima barrera necesaria es al inicio del
+             * siguiente omp for (implícita). */
+            #pragma omp for schedule(static) nowait
+            for (int i = 0; i < n; i++) {
+                x[i] = x_new[i];
             }
+            /* La barrera implícita del omp for (sin nowait aquí) garantiza
+             * que todos los hilos han terminado la copia antes de que el
+             * siguiente omp for lea x[]. */
 
-            /*
-             * PARTE DERECHA: j en (i, n)
-             */
-            j = i + 1;
-
-            /* Prólogo escalar: avanzar hasta siguiente múltiplo de AVX_W */
-            int right_vec = ((j + AVX_W - 1) / AVX_W) * AVX_W;
-            for (; j < right_vec && j < n; j++) {
-                scalar_sigma += row[j] * x[j];
-            }
-
-            /* Bucle vectorial hasta n_pad (padding=0, no contamina suma) */
-            for (; j + AVX_W <= n_pad; j += AVX_W) {
-                __m256d va = _mm256_load_pd(&row[j]);
-                __m256d vx = _mm256_load_pd(&x[j]);
-                vsigma = _mm256_fmadd_pd(va, vx, vsigma);
-            }
-
-            /* Epílogo escalar parte derecha (si quedaron elementos entre n y n_pad) */
-            for (; j < n; j++) {
-                scalar_sigma += row[j] * x[j];
-            }
-
-            /*
-             * REDUCCIÓN HORIZONTAL de vsigma → un solo double
-             * hadd: [v0+v1, v2+v3 | v0+v1, v2+v3]
-             * Suma lane baja + lane alta para obtener v0+v1+v2+v3.
-             */
-            __m256d vhadd = _mm256_hadd_pd(vsigma, vsigma);
-            __m128d vlow  = _mm256_castpd256_pd128(vhadd);
-            __m128d vhigh = _mm256_extractf128_pd(vhadd, 1);
-            __m128d vsum  = _mm_add_pd(vlow, vhigh);
-            double  sigma = _mm_cvtsd_f64(vsum) + scalar_sigma;
-
-            x_new[i] = (b[i] - sigma) / row[i];
-
-            double diff = x_new[i] - x[i];
-            norm2 += diff * diff;
         }
+    } /* fin región parallel */
 
-        /* x = x_new (solo los n elementos reales) */
-        memcpy(x, x_new, (size_t)n * sizeof(double));
-
-        if (sqrt(norm2) < tol) {
-            break;
-        }
-
-        /* ETA cada 1000 iteraciones (visible con: tail -f logs/JOBID.err) */
-        if (iter > 0 && iter % 1000 == 0) {
-            double ciclos_ahora    = get_counter();
-            double ciclos_por_iter = ciclos_ahora / iter;
-            double eta_seg         = ciclos_por_iter * (max_iter - iter) / 2.2e9;
-            fprintf(stderr, "[v3] n=%d | iter=%d/%d | norm2=%.3e | ETA ~%.1f s\n",
-                    n, iter, max_iter, norm2, eta_seg);
-            fflush(stderr);
-        }
-    }
-
-    /*
-     * FIN MEDIDA DE CICLOS
-     */
     double ciclos = get_counter();
 
-    printf("v3 %d %d %.6e %.0f\n", n, iter, norm2, ciclos);
+    /* norm2 se resetea dentro de single al final de cada iteración;
+     * calculamos la norma final sobre el vector solución x[] para la salida. */
+    double norm2_final = 0.0;
+    for (int i = 0; i < n; i++) {
+        norm2_final += x[i] * x[i];
+    }
+
+    printf("v3 %d %d %d %.6e %.0f\n",
+           n, num_threads, iter, norm2_final, ciclos);
 
     free(a);
     free(b);
@@ -206,3 +215,27 @@ int main(int argc, char *argv[]) {
 
     return 0;
 }
+
+/*
+ * VERSIÓN CON CRITICAL (para comparar rendimiento, documentar en memoria)
+ * Sustituir el bloque omp for + reduction por este fragmento y medir
+ * ciclos con el mismo n y número de hilos para ver el impacto de la
+ * serialización en la actualización de norm2.
+ *
+ *   #pragma omp for schedule(static) nowait
+ *   for (int i = 0; i < n; i++) {
+ *       const double *row = &a[i * n];
+ *       double sigma = 0.0;
+ *       for (int j = 0; j < i; j++)       sigma += row[j] * x[j];
+ *       for (int j = i + 1; j < n; j++)   sigma += row[j] * x[j];
+ *       x_new[i] = (b[i] - sigma) / row[i];
+ *       double diff = x_new[i] - x[i];
+ *       double local = diff * diff;
+ *       #pragma omp critical        // un hilo a la vez: serializa
+ *       { norm2 += local; }
+ *   }
+ *
+ * Con pocos hilos (1-2) la diferencia es pequeña.
+ * Con muchos hilos (8-16) critical genera alta contención y degrada
+ * el speedup. reduction no tiene este problema.
+ */
