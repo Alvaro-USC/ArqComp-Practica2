@@ -1,587 +1,668 @@
 """
 analisis_resultados.py
-======================
-Lee los ficheros de resultados generados por los scripts SLURM,
-produce todas las gráficas y recompila la memoria en PDF.
+=====================
 
-Formato de ficheros de resultados:
-  · v1_O0.txt, v1_O3.txt, v2_O0.txt, v2_O3.txt, v4_O0.txt, v4_O3.txt
-      <version> <n> <iter> <norm2> <ciclos>
+Analiza los resultados de la Practica 2 de Arquitectura de Computadores.
 
-  · v3_O3_static.txt, v3_O3_dynamic.txt, v3_O3_guided.txt, v3_O3_critical.txt
-      <version> <n> <threads> <iter> <norm2> <ciclos>
+Numeracion correcta usada en este repositorio:
+  - v1: secuencial base
+  - v2: secuencial optimizada para cache
+  - v3: OpenMP
+  - v4: SIMD AVX256 + FMA
 
-Uso:
-  python3 analisis_resultados.py
-  (ejecutar desde el directorio que contiene 'resultados/' y 'Memoria.tex')
+Ficheros de entrada esperados:
+  - resultados/v1_O0.txt
+  - resultados/v1_O3.txt
+  - resultados/v2_O0.txt
+  - resultados/v2_O3.txt
+  - resultados/v3_O3_static.txt
+  - resultados/v3_O3_dynamic.txt
+  - resultados/v3_O3_guided.txt
+  - resultados/v3_O3_critical.txt
+  - resultados/v4_O0.txt
+  - resultados/v4_O3.txt
+
+Graficas generadas:
+  - g1: speedup v2 vs v1 con -O0
+  - g2: speedup v2 / v3(mejor) / v4 vs v1-O3
+  - g3: speedup v3(mejor) / v4 vs v2-O3
+  - g4: speedup OpenMP por hilos (schedule static)
+  - g5: comparacion de schedulings OpenMP
+  - g6: comparacion reduction vs critical
 """
 
+from __future__ import annotations
+
+import argparse
 import os
 import re
 import shutil
 import subprocess
-import sys
+from dataclasses import dataclass
+from typing import Dict, Iterable, List, Optional
+
+import matplotlib
+
+matplotlib.use("Agg")
+
+import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-import matplotlib.pyplot as plt
-import matplotlib.ticker as ticker
 
-# ── Configuración de estilo ──────────────────────────────────────────────────
-plt.rcParams.update({
-    "figure.dpi":       150,
-    "font.size":        11,
-    "axes.grid":        True,
-    "grid.linestyle":   "--",
-    "grid.alpha":       0.5,
-    "lines.linewidth":  2,
-    "lines.markersize": 7,
-})
-
-RESULTS_DIR = "resultados"
-PLOTS_DIR   = "graficas"
-TEX_FILE    = "Memoria.tex"          # fuente LaTeX (se lee pero NO se modifica)
-TEX_WORK    = "Memoria_build.tex"    # copia de trabajo donde se parchean datos
-PDF_OUT     = "Memoria.pdf"
-
-os.makedirs(PLOTS_DIR, exist_ok=True)
-
-SIZES   = [1250, 2000, 3200]
-COLORS  = ["#1f77b4", "#ff7f0e", "#2ca02c", "#d62728", "#9467bd"]
-MARKERS = ["o", "s", "^", "D", "v"]
-
-# ── Nombres de imagen que usa el .tex (deben coincidir exactamente) ──────────
-# Mapeamos: nombre_clave -> ruta relativa que \includegraphics referencia en el .tex
-IMG_NAMES = {
-    "g1": "graficas/g1_speedup_v2_vs_v1_O0.png",
-    "g2": "graficas/g2_speedup_vs_v1O3.png",
-    "g3": "graficas/g3_speedup_v3_v4_vs_v2O3.png",
-    "g4": "graficas/g4_speedup_hilos.png",
-    "g5": "graficas/g5_schedulings.png",
-    "g6": "graficas/g6_atomic_vs_critical.png",
+SIZES = [1250, 2000, 3200]
+PLOT_FILES = {
+    "g1": "g1_speedup_v2_vs_v1_O0.png",
+    "g2": "g2_speedup_vs_v1O3.png",
+    "g3": "g3_speedup_v3_v4_vs_v2O3.png",
+    "g4": "g4_speedup_hilos.png",
+    "g5": "g5_schedulings.png",
+    "g6": "g6_atomic_vs_critical.png",
+}
+SEQ_FILES = {
+    "v1_O0": "v1_O0.txt",
+    "v1_O3": "v1_O3.txt",
+    "v2_O0": "v2_O0.txt",
+    "v2_O3": "v2_O3.txt",
+    "v4_O0": "v4_O0.txt",
+    "v4_O3": "v4_O3.txt",
+}
+OMP_FILES = {
+    "static": "v3_O3_static.txt",
+    "dynamic": "v3_O3_dynamic.txt",
+    "guided": "v3_O3_guided.txt",
+    "critical": "v3_O3_critical.txt",
 }
 
 
-# ══════════════════════════════════════════════════════════════════════════════
-# FUNCIONES DE CARGA
-# ══════════════════════════════════════════════════════════════════════════════
+@dataclass
+class AnalysisData:
+    seq_raw: Dict[str, pd.DataFrame]
+    seq_med: Dict[str, pd.DataFrame]
+    omp_raw: Dict[str, pd.DataFrame]
+    omp_med: Dict[str, pd.DataFrame]
+    best_openmp: pd.DataFrame
 
-def load_sequential(filename):
-    """Carga v1/v2/v4: <version> <n> <iter> <norm2> <ciclos>"""
-    rows = []
-    path = os.path.join(RESULTS_DIR, filename)
+
+def configure_style() -> None:
+    plt.rcParams.update(
+        {
+            "figure.dpi": 150,
+            "font.size": 11,
+            "axes.grid": True,
+            "grid.linestyle": "--",
+            "grid.alpha": 0.45,
+            "lines.linewidth": 2,
+            "lines.markersize": 7,
+        }
+    )
+
+
+def load_sequential(path: str) -> pd.DataFrame:
+    rows: List[dict] = []
     if not os.path.isfile(path):
-        print(f"  [AVISO] No se encontró: {path}")
-        return pd.DataFrame()
-    with open(path) as f:
-        for line in f:
-            line = line.strip()
-            if not line or line.startswith("#"):
-                continue
+        print(f"[AVISO] No se encontro {path}")
+        return pd.DataFrame(columns=["version", "n", "iter", "norm2", "ciclos"])
+
+    with open(path, encoding="utf-8") as handle:
+        for line in handle:
             parts = line.split()
-            if len(parts) < 5:
+            if len(parts) != 5:
                 continue
             try:
-                rows.append({
-                    "version": parts[0],
-                    "n":       int(parts[1]),
-                    "iter":    int(parts[2]),
-                    "norm2":   float(parts[3]),
-                    "ciclos":  float(parts[4]),
-                })
+                rows.append(
+                    {
+                        "version": parts[0],
+                        "n": int(parts[1]),
+                        "iter": int(parts[2]),
+                        "norm2": float(parts[3]),
+                        "ciclos": float(parts[4]),
+                    }
+                )
             except ValueError:
                 continue
+
     return pd.DataFrame(rows)
 
 
-def load_openmp(filename):
-    """Carga v3: <version> <n> <threads> <iter> <norm2> <ciclos>"""
-    rows = []
-    path = os.path.join(RESULTS_DIR, filename)
+def load_openmp(path: str) -> pd.DataFrame:
+    rows: List[dict] = []
     if not os.path.isfile(path):
-        print(f"  [AVISO] No se encontró: {path}")
-        return pd.DataFrame()
-    with open(path) as f:
-        for line in f:
-            line = line.strip()
-            if not line or line.startswith("#"):
-                continue
+        print(f"[AVISO] No se encontro {path}")
+        return pd.DataFrame(columns=["version", "n", "threads", "iter", "norm2", "ciclos"])
+
+    with open(path, encoding="utf-8") as handle:
+        for line in handle:
             parts = line.split()
-            if len(parts) < 6:
+            if len(parts) != 6:
                 continue
             try:
-                rows.append({
-                    "version": parts[0],
-                    "n":       int(parts[1]),
-                    "threads": int(parts[2]),
-                    "iter":    int(parts[3]),
-                    "norm2":   float(parts[4]),
-                    "ciclos":  float(parts[5]),
-                })
+                rows.append(
+                    {
+                        "version": parts[0],
+                        "n": int(parts[1]),
+                        "threads": int(parts[2]),
+                        "iter": int(parts[3]),
+                        "norm2": float(parts[4]),
+                        "ciclos": float(parts[5]),
+                    }
+                )
             except ValueError:
                 continue
+
     return pd.DataFrame(rows)
 
 
-def median_ciclos(df, group_cols):
+def median_table(df: pd.DataFrame, group_cols: List[str]) -> pd.DataFrame:
     if df.empty:
-        return pd.DataFrame()
-    return df.groupby(group_cols)["ciclos"].median().reset_index()
+        return pd.DataFrame(columns=group_cols + ["iter", "norm2", "ciclos"])
+    return df.groupby(group_cols)[["iter", "norm2", "ciclos"]].median().reset_index()
 
 
-def get_ciclos(med_df, n_val, threads_val=None):
+def get_metric(med_df: pd.DataFrame, n: int, metric: str, threads: Optional[int] = None) -> float:
     if med_df.empty:
         return np.nan
-    if threads_val is not None:
-        row = med_df[(med_df["n"] == n_val) & (med_df["threads"] == threads_val)]
+
+    if threads is None:
+        row = med_df[med_df["n"] == n]
     else:
-        row = med_df[med_df["n"] == n_val]
+        row = med_df[(med_df["n"] == n) & (med_df["threads"] == threads)]
+
     if row.empty:
         return np.nan
-    return row["ciclos"].values[0]
+    return float(row.iloc[0][metric])
 
 
-# ══════════════════════════════════════════════════════════════════════════════
-# CARGA DE DATOS
-# ══════════════════════════════════════════════════════════════════════════════
-
-print("Cargando datos...")
-df_v1_O0 = load_sequential("v1_O0.txt")
-df_v1_O3 = load_sequential("v1_O3.txt")
-df_v2_O0 = load_sequential("v2_O0.txt")
-df_v2_O3 = load_sequential("v2_O3.txt")
-df_v4_O0 = load_sequential("v4_O0.txt")
-df_v4_O3 = load_sequential("v4_O3.txt")
-
-df_v3_static   = load_openmp("v3_O3_static.txt")
-df_v3_dynamic  = load_openmp("v3_O3_dynamic.txt")
-df_v3_guided   = load_openmp("v3_O3_guided.txt")
-df_v3_critical = load_openmp("v3_O3_critical.txt")
-
-med_v1_O0 = median_ciclos(df_v1_O0, ["n"])
-med_v1_O3 = median_ciclos(df_v1_O3, ["n"])
-med_v2_O0 = median_ciclos(df_v2_O0, ["n"])
-med_v2_O3 = median_ciclos(df_v2_O3, ["n"])
-med_v4_O0 = median_ciclos(df_v4_O0, ["n"])
-med_v4_O3 = median_ciclos(df_v4_O3, ["n"])
-
-med_v3_static   = median_ciclos(df_v3_static,   ["n", "threads"])
-med_v3_dynamic  = median_ciclos(df_v3_dynamic,  ["n", "threads"])
-med_v3_guided   = median_ciclos(df_v3_guided,   ["n", "threads"])
-med_v3_critical = median_ciclos(df_v3_critical, ["n", "threads"])
+def safe_div(num: float, den: float) -> float:
+    if np.isnan(num) or np.isnan(den) or den == 0.0:
+        return np.nan
+    return num / den
 
 
-# ══════════════════════════════════════════════════════════════════════════════
-# GRÁFICA 1 — Speedup v2-O0 vs v1-O0  (solo barras -O0, ambas referencia -O0)
-# Nombre exacto que referencia el .tex: g1_speedup_v2_vs_v1_O0.png
-# ══════════════════════════════════════════════════════════════════════════════
-print("Generando Gráfica 1: Speedup v2 vs v1-O0 ...")
+def build_best_openmp(omp_med: Dict[str, pd.DataFrame]) -> pd.DataFrame:
+    rows: List[dict] = []
 
-fig, ax = plt.subplots()
-x     = np.arange(len(SIZES))
-width = 0.5
+    for n in SIZES:
+        best_row: Optional[dict] = None
+        for variant, med_df in omp_med.items():
+            if med_df.empty:
+                continue
+            for _, row in med_df[med_df["n"] == n].iterrows():
+                candidate = {
+                    "n": n,
+                    "variant": variant,
+                    "threads": int(row["threads"]),
+                    "iter": float(row["iter"]),
+                    "norm2": float(row["norm2"]),
+                    "ciclos": float(row["ciclos"]),
+                }
+                if best_row is None or candidate["ciclos"] < best_row["ciclos"]:
+                    best_row = candidate
+        if best_row is not None:
+            rows.append(best_row)
 
-sp_v2_O0 = [get_ciclos(med_v1_O0, n) / get_ciclos(med_v2_O0, n) for n in SIZES]
-
-bars = ax.bar(x, sp_v2_O0, width, color=COLORS[0], alpha=0.85)
-ax.axhline(1.0, color="gray", linestyle="--", linewidth=1)
-ax.set_xlabel("Tamaño n")
-ax.set_ylabel("Speedup")
-ax.set_title("G1 – Speedup v2 vs v1  (ambos -O0)\nEfecto puro de optimizaciones caché")
-ax.set_xticks(x)
-ax.set_xticklabels([str(n) for n in SIZES])
-
-for bar, val in zip(bars, sp_v2_O0):
-    if not np.isnan(val):
-        ax.text(bar.get_x() + bar.get_width()/2, val + 0.01,
-                f"{val:.2f}×", ha="center", va="bottom", fontsize=9)
-
-plt.tight_layout()
-plt.savefig(IMG_NAMES["g1"])
-plt.close()
+    return pd.DataFrame(rows)
 
 
-# ══════════════════════════════════════════════════════════════════════════════
-# GRÁFICA 2 — Speedup v2/v3/v4 vs v1-O3
-# Nombre: g2_speedup_vs_v1O3.png
-# ══════════════════════════════════════════════════════════════════════════════
-print("Generando Gráfica 2: Speedup v2/v4/v3 vs v1-O3 ...")
+def load_all_data(results_dir: str) -> AnalysisData:
+    seq_raw = {key: load_sequential(os.path.join(results_dir, filename)) for key, filename in SEQ_FILES.items()}
+    seq_med = {key: median_table(df, ["n"]) for key, df in seq_raw.items()}
 
-fig, ax = plt.subplots()
-x     = np.arange(len(SIZES))
-width = 0.15
+    omp_raw = {key: load_openmp(os.path.join(results_dir, filename)) for key, filename in OMP_FILES.items()}
+    omp_med = {key: median_table(df, ["n", "threads"]) for key, df in omp_raw.items()}
 
-labels_sp2  = ["v2-O0", "v2-O3", "v3-O0", "v3-O3", "v4-O3 (1T)"]
-bar_colors  = [COLORS[0], COLORS[1], "#2ca02c", "#9467bd", "#ff7f0e"]
-
-if not df_v3_static.empty:
-    max_t = int(df_v3_static["threads"].max())
-else:
-    max_t = 1
-
-data_sp2 = []
-for n in SIZES:
-    base = get_ciclos(med_v1_O3, n)
-    # v3-O0: 1 hilo con -O0 no existe en nuestros ficheros; usamos med_v4_O0 si disponible
-    # Aquí usamos v3_static con 1 hilo como proxy de "v3 secuencial -O3"
-    v3_O0_proxy = get_ciclos(med_v4_O0, n)   # si existe v4_O0; si no, NaN
-    data_sp2.append([
-        base / get_ciclos(med_v2_O0, n),
-        base / get_ciclos(med_v2_O3, n),
-        base / v3_O0_proxy,
-        base / get_ciclos(med_v3_static, n, 1),
-        base / get_ciclos(med_v4_O3, n),
-    ])
-
-data_sp2 = np.array(data_sp2, dtype=float)
-offsets = np.array([-2, -1, 0, 1, 2]) * width
-
-for k, (label, color) in enumerate(zip(labels_sp2, bar_colors)):
-    vals = data_sp2[:, k]
-    valid = ~np.isnan(vals)
-    ax.bar(x[valid] + offsets[k], vals[valid], width,
-           label=label, color=color, alpha=0.85)
-
-ax.axhline(1.0, color="gray", linestyle="--", linewidth=1)
-ax.set_xlabel("Tamaño n")
-ax.set_ylabel("Speedup")
-ax.set_title("G2 – Speedup v2 / v3 / v4(1T) vs v1-O3\nReferencia: versión base compilada con -O3")
-ax.set_xticks(x)
-ax.set_xticklabels([str(n) for n in SIZES])
-ax.legend(fontsize=9)
-plt.tight_layout()
-plt.savefig(IMG_NAMES["g2"])
-plt.close()
+    best_openmp = build_best_openmp(omp_med)
+    return AnalysisData(seq_raw=seq_raw, seq_med=seq_med, omp_raw=omp_raw, omp_med=omp_med, best_openmp=best_openmp)
 
 
-# ══════════════════════════════════════════════════════════════════════════════
-# GRÁFICA 3 — Speedup v3(SIMD) y v4(1T) vs v2-O3
-# Nombre: g3_speedup_v3_v4_vs_v2O3.png
-# ══════════════════════════════════════════════════════════════════════════════
-print("Generando Gráfica 3: Speedup v3/v4 vs v2-O3 ...")
+def print_result_consistency_warnings(data: AnalysisData) -> None:
+    static_med = data.omp_med["static"]
+    v2_med = data.seq_med["v2_O3"]
+    v4_med = data.seq_med["v4_O3"]
 
-fig, ax = plt.subplots()
-x     = np.arange(len(SIZES))
-width = 0.3
+    if static_med.empty or v2_med.empty or v4_med.empty:
+        return
 
-sp_v3 = [get_ciclos(med_v2_O3, n) / get_ciclos(med_v3_static, n, 1) for n in SIZES]
-sp_v4 = [get_ciclos(med_v2_O3, n) / get_ciclos(med_v4_O3, n)        for n in SIZES]
+    print("\nChequeo rapido de consistencia numerica:")
+    issues = 0
+    for n in SIZES:
+        iter_v2 = get_metric(v2_med, n, "iter")
+        iter_v4 = get_metric(v4_med, n, "iter")
+        iter_v3 = get_metric(static_med, n, "iter", threads=1)
+        norm_v2 = get_metric(v2_med, n, "norm2")
+        norm_v4 = get_metric(v4_med, n, "norm2")
+        norm_v3 = get_metric(static_med, n, "norm2", threads=1)
 
-bars3 = ax.bar(x - width/2, sp_v3, width, label="v3-O3 (SIMD)",    color="#2ca02c", alpha=0.85)
-bars4 = ax.bar(x + width/2, sp_v4, width, label="v4-O3 (1 hilo)",  color="#9467bd", alpha=0.85)
-
-ax.axhline(1.0, color="gray", linestyle="--", linewidth=1)
-ax.set_xlabel("Tamaño n")
-ax.set_ylabel("Speedup")
-ax.set_title("G3 – Speedup v3 y v4(1T) vs v2-O3\nReferencia: mejor versión secuencial")
-ax.set_xticks(x)
-ax.set_xticklabels([str(n) for n in SIZES])
-ax.legend()
-
-for bar, val in zip(list(bars3) + list(bars4), sp_v3 + sp_v4):
-    if not np.isnan(val):
-        ax.text(bar.get_x() + bar.get_width()/2, val + 0.01,
-                f"{val:.2f}×", ha="center", va="bottom", fontsize=9)
-
-plt.tight_layout()
-plt.savefig(IMG_NAMES["g3"])
-plt.close()
-
-
-# ══════════════════════════════════════════════════════════════════════════════
-# GRÁFICA 4 — Speedup v3 (schedule static) por número de hilos
-# Nombre: g4_speedup_hilos.png
-# ══════════════════════════════════════════════════════════════════════════════
-print("Generando Gráfica 4: Speedup v3 por hilos ...")
-
-if not med_v3_static.empty:
-    fig, ax = plt.subplots()
-    all_threads = sorted(med_v3_static["threads"].unique())
-
-    for k, n in enumerate(SIZES):
-        base_1t = get_ciclos(med_v3_static, n, 1)
-        sp = [base_1t / get_ciclos(med_v3_static, n, T) for T in all_threads]
-        ax.plot(all_threads, sp, label=f"n={n}",
-                color=COLORS[k], marker=MARKERS[k])
-
-    ax.plot(all_threads, all_threads, "k--", label="Ideal (lineal)", linewidth=1)
-    ax.set_xlabel("Número de hilos")
-    ax.set_ylabel("Speedup")
-    ax.set_title("G4 – Speedup v4-O3 (schedule static) por número de hilos\nvs ejecución con 1 hilo")
-    ax.set_xticks(all_threads)
-    ax.legend()
-    plt.tight_layout()
-    plt.savefig(IMG_NAMES["g4"])
-    plt.close()
-else:
-    print("  [AVISO] Sin datos de v3 estático; omitiendo Gráfica 4.")
-
-
-# ══════════════════════════════════════════════════════════════════════════════
-# GRÁFICA 5 — Comparación schedulings (static / dynamic / guided), speedup vs 1h
-# Nombre: g5_schedulings.png  (figura* de ancho completo en el .tex)
-# ══════════════════════════════════════════════════════════════════════════════
-print("Generando Gráfica 5: Comparación schedulings v3 ...")
-
-sched_data = {
-    "static":      med_v3_static,
-    "dynamic(16)": med_v3_dynamic,
-    "guided":      med_v3_guided,
-}
-sched_colors = [COLORS[0], COLORS[1], "#2ca02c"]
-
-fig, axes = plt.subplots(1, 3, figsize=(14, 4), sharey=False)
-fig.suptitle("G5 – Comparación schedulings OpenMP (speedup vs 1 hilo)")
-
-for ax, n in zip(axes, SIZES):
-    ax.set_title(f"n = {n}")
-    for k, (sched, med_df) in enumerate(sched_data.items()):
-        if med_df.empty:
+        if np.isnan(iter_v3) or np.isnan(norm_v3):
             continue
-        threads_avail = sorted(med_df["threads"].unique())
-        base_1t = get_ciclos(med_df, n, 1)
-        sp = [base_1t / get_ciclos(med_df, n, T) for T in threads_avail]
-        ax.plot(threads_avail, sp, label=sched,
-                color=sched_colors[k], marker=MARKERS[k])
 
-    if not med_v3_static.empty:
-        thr = sorted(med_v3_static["threads"].unique())
-        ax.plot(thr, thr, "k--", label="Ideal", linewidth=1)
-        ax.set_xticks(thr)
+        if not (abs(iter_v2 - iter_v3) < 0.5 and abs(iter_v4 - iter_v3) < 0.5):
+            issues += 1
+            print(f"  [AVISO] n={n}: v3(1 hilo) no coincide en iteraciones con v2/v4.")
+        if not (np.isclose(norm_v2, norm_v3, rtol=1e-9, atol=1e-12) and np.isclose(norm_v4, norm_v3, rtol=1e-9, atol=1e-12)):
+            issues += 1
+            print(f"  [AVISO] n={n}: v3(1 hilo) no coincide en norm2 con v2/v4.")
 
-    ax.set_xlabel("Hilos")
+    if issues == 0:
+        print("  OK: v2, v3(1 hilo) y v4 son coherentes en los resultados disponibles.")
+
+
+def ensure_plot_dir(plots_dir: str) -> None:
+    os.makedirs(plots_dir, exist_ok=True)
+
+
+def save_plot(fig: plt.Figure, plots_dir: str, key: str) -> None:
+    ensure_plot_dir(plots_dir)
+    path = os.path.join(plots_dir, PLOT_FILES[key])
+    fig.tight_layout()
+    fig.savefig(path)
+    plt.close(fig)
+    print(f"  -> {path}")
+
+
+def generate_g1(data: AnalysisData, plots_dir: str) -> None:
+    print("Generando G1: speedup v2 vs v1 con -O0...")
+    x = np.arange(len(SIZES))
+    values = [safe_div(get_metric(data.seq_med["v1_O0"], n, "ciclos"), get_metric(data.seq_med["v2_O0"], n, "ciclos")) for n in SIZES]
+
+    fig, ax = plt.subplots(figsize=(6, 4))
+    bars = ax.bar(x, values, width=0.55, color="#1f77b4", alpha=0.9)
+    ax.axhline(1.0, color="gray", linestyle="--", linewidth=1)
+    ax.set_xticks(x)
+    ax.set_xticklabels([str(n) for n in SIZES])
+    ax.set_xlabel("Tamano n")
     ax.set_ylabel("Speedup")
-    ax.legend(fontsize=8)
+    ax.set_title("G1 - Speedup v2 vs v1 (ambos -O0)")
+    for bar, value in zip(bars, values):
+        if not np.isnan(value):
+            ax.text(bar.get_x() + bar.get_width() / 2, value + 0.01, f"{value:.2f}x", ha="center", va="bottom")
 
-plt.tight_layout()
-plt.savefig(IMG_NAMES["g5"])
-plt.close()
+    save_plot(fig, plots_dir, "g1")
 
 
-# ══════════════════════════════════════════════════════════════════════════════
-# GRÁFICA 6 — atomic vs critical (speedup vs 1 hilo)
-# Nombre: g6_atomic_vs_critical.png  (figura* de ancho completo en el .tex)
-# ══════════════════════════════════════════════════════════════════════════════
-print("Generando Gráfica 6: atomic vs critical ...")
+def generate_g2(data: AnalysisData, plots_dir: str) -> None:
+    print("Generando G2: v2 / v3(mejor) / v4 vs v1-O3...")
+    labels = ["v2 -O3", "v3 OpenMP (mejor)", "v4 SIMD -O3"]
+    colors = ["#1f77b4", "#ff7f0e", "#2ca02c"]
+    x = np.arange(len(SIZES))
+    width = 0.24
 
-# "atomic" es la variante static (reduction nativa o atomic); "critical" es v3_critical
-if not med_v3_static.empty and not med_v3_critical.empty:
-    fig, axes = plt.subplots(1, 3, figsize=(14, 4), sharey=False)
-    fig.suptitle("G6 – Reducción atomic vs critical (speedup vs 1 hilo)")
+    best_v3 = data.best_openmp
+    series = []
+    for n in SIZES:
+        base = get_metric(data.seq_med["v1_O3"], n, "ciclos")
+        v2 = safe_div(base, get_metric(data.seq_med["v2_O3"], n, "ciclos"))
+        v4 = safe_div(base, get_metric(data.seq_med["v4_O3"], n, "ciclos"))
+        if best_v3.empty:
+            v3 = np.nan
+        else:
+            row = best_v3[best_v3["n"] == n]
+            v3 = np.nan if row.empty else safe_div(base, float(row.iloc[0]["ciclos"]))
+        series.append([v2, v3, v4])
+
+    values = np.array(series, dtype=float)
+
+    fig, ax = plt.subplots(figsize=(8, 4.5))
+    for idx, label in enumerate(labels):
+        col = values[:, idx]
+        valid = ~np.isnan(col)
+        ax.bar(x[valid] + (idx - 1) * width, col[valid], width=width, label=label, color=colors[idx], alpha=0.9)
+
+    ax.axhline(1.0, color="gray", linestyle="--", linewidth=1)
+    ax.set_xticks(x)
+    ax.set_xticklabels([str(n) for n in SIZES])
+    ax.set_xlabel("Tamano n")
+    ax.set_ylabel("Speedup")
+    ax.set_title("G2 - Speedup v2 / v3(mejor) / v4 vs v1-O3")
+    ax.legend()
+
+    save_plot(fig, plots_dir, "g2")
+
+
+def generate_g3(data: AnalysisData, plots_dir: str) -> None:
+    print("Generando G3: v3(mejor) / v4 vs v2-O3...")
+    x = np.arange(len(SIZES))
+    width = 0.28
+    sp_v3 = []
+    sp_v4 = []
+
+    for n in SIZES:
+        base = get_metric(data.seq_med["v2_O3"], n, "ciclos")
+        best_row = data.best_openmp[data.best_openmp["n"] == n]
+        best_v3_cycles = np.nan if best_row.empty else float(best_row.iloc[0]["ciclos"])
+        sp_v3.append(safe_div(base, best_v3_cycles))
+        sp_v4.append(safe_div(base, get_metric(data.seq_med["v4_O3"], n, "ciclos")))
+
+    fig, ax = plt.subplots(figsize=(7, 4.5))
+    bars_v3 = ax.bar(x - width / 2, sp_v3, width=width, label="v3 OpenMP (mejor)", color="#ff7f0e", alpha=0.9)
+    bars_v4 = ax.bar(x + width / 2, sp_v4, width=width, label="v4 SIMD -O3", color="#2ca02c", alpha=0.9)
+    ax.axhline(1.0, color="gray", linestyle="--", linewidth=1)
+    ax.set_xticks(x)
+    ax.set_xticklabels([str(n) for n in SIZES])
+    ax.set_xlabel("Tamano n")
+    ax.set_ylabel("Speedup")
+    ax.set_title("G3 - Speedup v3(mejor) / v4 vs v2-O3")
+    ax.legend()
+
+    for bar, value in zip(list(bars_v3) + list(bars_v4), sp_v3 + sp_v4):
+        if not np.isnan(value):
+            ax.text(bar.get_x() + bar.get_width() / 2, value + 0.01, f"{value:.2f}x", ha="center", va="bottom")
+
+    save_plot(fig, plots_dir, "g3")
+
+
+def generate_g4(data: AnalysisData, plots_dir: str) -> None:
+    print("Generando G4: speedup OpenMP por hilos (schedule static)...")
+    med_static = data.omp_med["static"]
+    if med_static.empty:
+        print("  [AVISO] No hay datos de v3_O3_static.txt; se omite G4.")
+        return
+
+    threads = sorted(med_static["threads"].unique())
+    colors = ["#1f77b4", "#ff7f0e", "#2ca02c"]
+
+    fig, ax = plt.subplots(figsize=(7.5, 4.5))
+    for color, n in zip(colors, SIZES):
+        base_1t = get_metric(med_static, n, "ciclos", threads=1)
+        speedups = [safe_div(base_1t, get_metric(med_static, n, "ciclos", threads=t)) for t in threads]
+        ax.plot(threads, speedups, marker="o", color=color, label=f"n={n}")
+
+    ax.plot(threads, threads, "k--", linewidth=1, label="Ideal")
+    ax.set_xticks(threads)
+    ax.set_xlabel("Numero de hilos")
+    ax.set_ylabel("Speedup")
+    ax.set_title("G4 - Speedup v3 OpenMP (schedule static)")
+    ax.legend()
+
+    save_plot(fig, plots_dir, "g4")
+
+
+def generate_g5(data: AnalysisData, plots_dir: str) -> None:
+    print("Generando G5: comparacion de schedulings...")
+    sched_names = [("static", "#1f77b4"), ("dynamic", "#ff7f0e"), ("guided", "#2ca02c")]
+
+    if all(data.omp_med[name].empty for name, _ in sched_names):
+        print("  [AVISO] No hay datos suficientes de OpenMP; se omite G5.")
+        return
+
+    fig, axes = plt.subplots(1, 3, figsize=(14, 4.5), sharey=False)
+    fig.suptitle("G5 - Comparacion de schedulings OpenMP (speedup vs 1 hilo)")
 
     for ax, n in zip(axes, SIZES):
         ax.set_title(f"n = {n}")
-        threads_s = sorted(med_v3_static["threads"].unique())
-        threads_c = sorted(med_v3_critical["threads"].unique())
+        for sched_name, color in sched_names:
+            med_df = data.omp_med[sched_name]
+            if med_df.empty:
+                continue
+            threads = sorted(med_df["threads"].unique())
+            base_1t = get_metric(med_df, n, "ciclos", threads=1)
+            speedups = [safe_div(base_1t, get_metric(med_df, n, "ciclos", threads=t)) for t in threads]
+            label = "dynamic(16)" if sched_name == "dynamic" else sched_name
+            ax.plot(threads, speedups, marker="o", color=color, label=label)
+            ax.set_xticks(threads)
 
-        base_1t_s = get_ciclos(med_v3_static,   n, 1)
-        base_1t_c = get_ciclos(med_v3_critical, n, 1)
-
-        sp_atom = [base_1t_s / get_ciclos(med_v3_static,   n, T) for T in threads_s]
-        sp_crit = [base_1t_c / get_ciclos(med_v3_critical, n, T) for T in threads_c]
-
-        ax.plot(threads_s, sp_atom, label="atomic",   color=COLORS[0], marker="o")
-        ax.plot(threads_c, sp_crit, label="critical", color=COLORS[1], marker="s")
-
-        if threads_s:
-            ax.plot(threads_s, threads_s, "k--", label="Ideal", linewidth=1)
-            ax.set_xticks(threads_s)
+        static_threads = sorted(data.omp_med["static"]["threads"].unique()) if not data.omp_med["static"].empty else []
+        if static_threads:
+            ax.plot(static_threads, static_threads, "k--", linewidth=1, label="Ideal")
 
         ax.set_xlabel("Hilos")
         ax.set_ylabel("Speedup")
         ax.legend(fontsize=8)
 
-    plt.tight_layout()
-    plt.savefig(IMG_NAMES["g6"])
-    plt.close()
-else:
-    print("  [AVISO] Faltan datos atomic/critical; omitiendo Gráfica 6.")
+    save_plot(fig, plots_dir, "g5")
 
 
-# ══════════════════════════════════════════════════════════════════════════════
-# TABLA RESUMEN — impresión en consola
-# ══════════════════════════════════════════════════════════════════════════════
-print("\n══════════════════════════════════════════════════════")
-print("TABLA RESUMEN — Ciclos (mediana, ×10⁹)")
-print("══════════════════════════════════════════════════════")
-print(f"{'Versión':<20}  {'n=1250':>12}  {'n=2000':>12}  {'n=3200':>12}")
-print("-" * 64)
+def generate_g6(data: AnalysisData, plots_dir: str) -> None:
+    print("Generando G6: reduction vs critical...")
+    med_static = data.omp_med["static"]
+    med_critical = data.omp_med["critical"]
 
-def fmt(v):
-    return "  N/A" if np.isnan(v) else f"{v/1e9:>10.3f}G"
-
-rows_tabla = [
-    ("v1 -O0",        med_v1_O0, None),
-    ("v1 -O3",        med_v1_O3, None),
-    ("v2 -O0",        med_v2_O0, None),
-    ("v2 -O3",        med_v2_O3, None),
-    ("v4 -O0 (SIMD)", med_v4_O0, None),
-    ("v4 -O3 (SIMD)", med_v4_O3, None),
-]
-table_data = {}   # para parchear el .tex
-for label, med_df, _ in rows_tabla:
-    vals = [get_ciclos(med_df, n) for n in SIZES]
-    table_data[label] = vals
-    print(f"{label:<20}  {'  '.join(fmt(v) for v in vals)}")
-
-if not med_v3_static.empty:
-    max_t = int(med_v3_static["threads"].max())
-    for T in [1, max_t]:
-        lbl  = f"v3 -O3 (OMP) {T}h"
-        vals = [get_ciclos(med_v3_static, n, T) for n in SIZES]
-        table_data[lbl] = vals
-        print(f"{lbl:<20}  {'  '.join(fmt(v) for v in vals)}")
-
-print("══════════════════════════════════════════════════════")
-print(f"\nGráficas guardadas en: {PLOTS_DIR}/")
-for f in sorted(os.listdir(PLOTS_DIR)):
-    print(f"  {f}")
-
-
-# ══════════════════════════════════════════════════════════════════════════════
-# COMPILACIÓN LaTeX → PDF
-# ══════════════════════════════════════════════════════════════════════════════
-
-def _fmt_tex(val):
-    """Formatea un ciclo como string LaTeX (e.g. 57.5)."""
-    if np.isnan(val):
-        return "---"
-    return f"{val/1e9:.1f}"
-
-
-def build_latex_table(table_data, med_v3_static):
-    """
-    Construye el cuerpo de la tabla LaTeX (filas de midrule hacia abajo)
-    con los valores reales de table_data.
-    """
-    # Orden de filas y su clave en table_data
-    row_specs = [
-        (r"v1 \texttt{-O0}",       "v1 -O0"),
-        (r"v1 \texttt{-O3}",       "v1 -O3"),
-        (r"v2 \texttt{-O0}",       "v2 -O0"),
-        (r"v2 \texttt{-O3}",       "v2 -O3"),
-        (r"v3 \texttt{-O3} (SIMD)", "v4 -O3 (SIMD)"),   # v3 SIMD en la memoria
-        (r"v4 \texttt{-O3} (1T)",   "v4 -O3 (SIMD)"),   # placeholder si no hay v4 separado
-    ]
-
-    lines = []
-    for tex_label, key in row_specs:
-        vals = table_data.get(key, [np.nan, np.nan, np.nan])
-        cols = " & ".join(_fmt_tex(v) for v in vals)
-        lines.append(f"{tex_label} & {cols} \\\\")
-
-    # Filas de v4 OpenMP con 1 hilo y máx hilos
-    if not med_v3_static.empty:
-        max_t = int(med_v3_static["threads"].max())
-        for T in [1, max_t]:
-            key  = f"v3 -O3 (OMP) {T}h"
-            vals = table_data.get(key, [np.nan, np.nan, np.nan])
-            cols = " & ".join(_fmt_tex(v) for v in vals)
-            tex_label = rf"v4 \texttt{{-O3}} ({T}T)"
-            lines.append(f"{tex_label} & {cols} \\\\")
-
-    return "\n".join(lines)
-
-
-def patch_and_compile_latex():
-    """
-    Copia Memoria.tex → Memoria_build.tex, reemplaza la tabla de medianas
-    con valores reales y compila con lualatex (2 pasadas).
-    """
-    if not os.path.isfile(TEX_FILE):
-        print(f"\n[AVISO] No se encontró {TEX_FILE}; saltando compilación LaTeX.")
+    if med_static.empty or med_critical.empty:
+        print("  [AVISO] Faltan datos de static o critical; se omite G6.")
         return
 
-    # Verificar que lualatex está disponible
+    fig, axes = plt.subplots(1, 3, figsize=(14, 4.5), sharey=False)
+    fig.suptitle("G6 - Reduccion reduction vs critical (speedup vs 1 hilo)")
+
+    for ax, n in zip(axes, SIZES):
+        threads_static = sorted(med_static["threads"].unique())
+        threads_critical = sorted(med_critical["threads"].unique())
+
+        base_static = get_metric(med_static, n, "ciclos", threads=1)
+        base_critical = get_metric(med_critical, n, "ciclos", threads=1)
+
+        speedup_static = [safe_div(base_static, get_metric(med_static, n, "ciclos", threads=t)) for t in threads_static]
+        speedup_critical = [safe_div(base_critical, get_metric(med_critical, n, "ciclos", threads=t)) for t in threads_critical]
+
+        ax.plot(threads_static, speedup_static, marker="o", color="#1f77b4", label="reduction")
+        ax.plot(threads_critical, speedup_critical, marker="s", color="#d62728", label="critical")
+        ax.plot(threads_static, threads_static, "k--", linewidth=1, label="Ideal")
+        ax.set_title(f"n = {n}")
+        ax.set_xlabel("Hilos")
+        ax.set_ylabel("Speedup")
+        ax.set_xticks(threads_static)
+        ax.legend(fontsize=8)
+
+    save_plot(fig, plots_dir, "g6")
+
+
+def print_summary(data: AnalysisData) -> None:
+    print("\nResumen de medianas de ciclos (x10^9):")
+    print(f"{'Version':<26} {'n=1250':>10} {'n=2000':>10} {'n=3200':>10}")
+    print("-" * 60)
+
+    def fmt(value: float) -> str:
+        return "---" if np.isnan(value) else f"{value / 1e9:>8.2f}"
+
+    rows = [
+        ("v1 -O0", data.seq_med["v1_O0"], None),
+        ("v1 -O3", data.seq_med["v1_O3"], None),
+        ("v2 -O0", data.seq_med["v2_O0"], None),
+        ("v2 -O3", data.seq_med["v2_O3"], None),
+        ("v4 -O0 (SIMD)", data.seq_med["v4_O0"], None),
+        ("v4 -O3 (SIMD)", data.seq_med["v4_O3"], None),
+    ]
+
+    for label, med_df, threads in rows:
+        vals = [get_metric(med_df, n, "ciclos", threads=threads) for n in SIZES]
+        print(f"{label:<26} {' '.join(fmt(v) for v in vals)}")
+
+    med_static = data.omp_med["static"]
+    if not med_static.empty:
+        max_threads = int(med_static["threads"].max())
+        for threads in (1, max_threads):
+            vals = [get_metric(med_static, n, "ciclos", threads=threads) for n in SIZES]
+            print(f"{f'v3 -O3 (OpenMP) {threads}T':<26} {' '.join(fmt(v) for v in vals)}")
+
+    if not data.best_openmp.empty:
+        print("\nMejor configuracion OpenMP por tamano:")
+        for _, row in data.best_openmp.iterrows():
+            print(
+                f"  n={int(row['n'])}: {row['variant']} con {int(row['threads'])} hilos "
+                f"-> {row['ciclos'] / 1e9:.2f}e9 ciclos"
+            )
+
+
+def build_table_lookup(data: AnalysisData) -> Dict[str, List[float]]:
+    med_static = data.omp_med["static"]
+    table = {
+        "v1_O0": [get_metric(data.seq_med["v1_O0"], n, "ciclos") for n in SIZES],
+        "v1_O3": [get_metric(data.seq_med["v1_O3"], n, "ciclos") for n in SIZES],
+        "v2_O0": [get_metric(data.seq_med["v2_O0"], n, "ciclos") for n in SIZES],
+        "v2_O3": [get_metric(data.seq_med["v2_O3"], n, "ciclos") for n in SIZES],
+        "v4_O0": [get_metric(data.seq_med["v4_O0"], n, "ciclos") for n in SIZES],
+        "v4_O3": [get_metric(data.seq_med["v4_O3"], n, "ciclos") for n in SIZES],
+    }
+
+    if not med_static.empty:
+        for threads in sorted(med_static["threads"].unique()):
+            table[f"v3_static_{int(threads)}"] = [get_metric(med_static, n, "ciclos", threads=int(threads)) for n in SIZES]
+
+    return table
+
+
+def format_tex_value(value: float) -> str:
+    return "---" if np.isnan(value) else f"{value / 1e9:.1f}"
+
+
+def detect_table_scheme(row_labels: Iterable[str]) -> str:
+    labels = list(row_labels)
+    has_legacy_v3_o0 = any(re.search(r"v3\s+\\texttt\{-O0\}", label) for label in labels)
+    has_legacy_v4_threads = any(re.search(r"v4\s+\\texttt\{-O3\}\s*\(\d+T\)", label) for label in labels)
+    return "legacy_swapped" if has_legacy_v3_o0 or has_legacy_v4_threads else "canonical"
+
+
+def values_for_row_label(label: str, scheme: str, table_lookup: Dict[str, List[float]]) -> Optional[List[float]]:
+    if re.search(r"v1\s+\\texttt\{-O0\}", label):
+        return table_lookup.get("v1_O0")
+    if re.search(r"v1\s+\\texttt\{-O3\}", label):
+        return table_lookup.get("v1_O3")
+    if re.search(r"v2\s+\\texttt\{-O0\}", label):
+        return table_lookup.get("v2_O0")
+    if re.search(r"v2\s+\\texttt\{-O3\}", label):
+        return table_lookup.get("v2_O3")
+
+    thread_match = re.search(r"\((\d+)T\)", label)
+    threads = int(thread_match.group(1)) if thread_match else None
+
+    if scheme == "legacy_swapped":
+        if re.search(r"v3\s+\\texttt\{-O0\}", label):
+            return table_lookup.get("v4_O0")
+        if re.search(r"v3\s+\\texttt\{-O3\}", label) and threads is None:
+            return table_lookup.get("v4_O3")
+        if re.search(r"v4\s+\\texttt\{-O3\}", label) and threads is not None:
+            return table_lookup.get(f"v3_static_{threads}")
+    else:
+        if re.search(r"v4\s+\\texttt\{-O0\}", label):
+            return table_lookup.get("v4_O0")
+        if re.search(r"v4\s+\\texttt\{-O3\}", label) and threads is None:
+            return table_lookup.get("v4_O3")
+        if re.search(r"v3\s+\\texttt\{-O3\}", label) and threads is not None:
+            return table_lookup.get(f"v3_static_{threads}")
+
+    return None
+
+
+def patch_latex_table(src: str, table_lookup: Dict[str, List[float]]) -> tuple[str, bool]:
+    pattern = re.compile(r"(\\label\{tab:medianas\}.*?\\midrule\n)(.*?)(\\bottomrule)", re.DOTALL)
+    match = pattern.search(src)
+    if not match:
+        print("[AVISO] No se localizo la tabla tab:medianas en el .tex.")
+        return src, False
+
+    old_rows = []
+    for raw_line in match.group(2).splitlines():
+        line = raw_line.strip()
+        if "&" in line and line.endswith("\\\\"):
+            old_rows.append(line)
+
+    row_labels = [line.split("&", 1)[0].strip() for line in old_rows]
+    scheme = detect_table_scheme(row_labels)
+
+    if scheme == "legacy_swapped":
+        print("[AVISO] Memoria.tex parece usar la numeracion antigua (v3=SIMD, v4=OpenMP).")
+        print("        Se actualizan solo los valores numericos respetando las etiquetas existentes.")
+
+    new_rows = []
+    for line, label in zip(old_rows, row_labels):
+        values = values_for_row_label(label, scheme, table_lookup)
+        if values is None:
+            new_rows.append(line)
+            continue
+        cols = " & ".join(format_tex_value(value) for value in values)
+        new_rows.append(f"{label} & {cols} \\\\")
+
+    new_block = match.group(1) + "\n".join(new_rows) + "\n" + match.group(3)
+    new_src = src[: match.start()] + new_block + src[match.end() :]
+    return new_src, True
+
+
+def compile_latex_document(latex_file: str, plots_dir: str, data: AnalysisData) -> None:
+    if not os.path.isfile(latex_file):
+        print(f"[AVISO] No se encontro {latex_file}; se omite la compilacion LaTeX.")
+        return
+
+    if os.path.basename(plots_dir) != "graficas":
+        print("[AVISO] La compilacion LaTeX se omite porque las graficas no se estan escribiendo en 'graficas/'.")
+        return
+
     latex_bin = shutil.which("lualatex") or shutil.which("pdflatex")
     if latex_bin is None:
-        print("\n[AVISO] lualatex/pdflatex no encontrado en PATH; saltando compilación.")
-        print("  Instala TeX Live o MiKTeX y asegúrate de que esté en el PATH.")
+        print("[AVISO] No se encontro lualatex/pdflatex; se omite la compilacion LaTeX.")
         return
 
-    compiler = os.path.basename(latex_bin)
-    print(f"\n── Parcheando {TEX_FILE} → {TEX_WORK} ──")
+    with open(latex_file, encoding="utf-8") as handle:
+        src = handle.read()
 
-    with open(TEX_FILE, encoding="utf-8") as f:
-        src = f.read()
+    patched_src, changed = patch_latex_table(src, build_table_lookup(data))
+    build_tex = os.path.splitext(latex_file)[0] + "_build.tex"
 
-    # ── Parche 1: tabla de medianas ──────────────────────────────────────────
-    # Localiza el bloque entre \midrule y \bottomrule dentro de tab:medianas
-    # y lo sustituye por datos reales.
-    new_rows = build_latex_table(table_data, med_v3_static)
+    with open(build_tex, "w", encoding="utf-8") as handle:
+        handle.write(patched_src)
 
-    # Patrón: desde \midrule hasta \bottomrule (dentro de la tabla tab:medianas)
-    tabla_pattern = re.compile(
-        r'(\\label\{tab:medianas\}.*?\\midrule\n)'   # cabecera hasta \midrule
-        r'(.*?)'                                       # filas actuales (sustituir)
-        r'(\\bottomrule)',                             # cierre
-        re.DOTALL
-    )
-    new_src, n_subs = tabla_pattern.subn(
-        lambda m: m.group(1) + new_rows + "\n" + m.group(3),
-        src
-    )
-    if n_subs == 0:
-        print("  [AVISO] No se localizó la tabla tab:medianas; se usará sin parche.")
-        new_src = src
-    else:
-        print(f"  Tabla de medianas actualizada con datos reales ({n_subs} sustitución).")
+    if changed:
+        print(f"Tabla de medianas actualizada en {build_tex}.")
 
-    # ── Parche 2: verificar rutas de imágenes ────────────────────────────────
-    # Comprueba que todos los ficheros referenciados existen
-    missing_imgs = []
-    for key, path in IMG_NAMES.items():
-        if not os.path.isfile(path):
-            missing_imgs.append(path)
-    if missing_imgs:
-        print("  [AVISO] Faltan estas imágenes (la compilación puede fallar):")
-        for p in missing_imgs:
-            print(f"    {p}")
+    for plot_name in PLOT_FILES.values():
+        plot_path = os.path.join(plots_dir, plot_name)
+        if not os.path.isfile(plot_path):
+            print(f"[AVISO] Falta la grafica {plot_path}; la compilacion puede fallar.")
 
-    with open(TEX_WORK, "w", encoding="utf-8") as f:
-        f.write(new_src)
-
-    # ── Compilación (2 pasadas para referencias cruzadas) ────────────────────
-    compile_flags = [
-        latex_bin,
-        "-interaction=nonstopmode",
-        "-halt-on-error",
-        TEX_WORK,
-    ]
-
-    for pasada in (1, 2):
-        print(f"── Compilando con {compiler}: pasada {pasada}/2 ──")
-        result = subprocess.run(
-            compile_flags,
-            capture_output=True,
-            text=True,
-        )
+    command = [latex_bin, "-interaction=nonstopmode", "-halt-on-error", build_tex]
+    for pass_idx in (1, 2):
+        print(f"Compilando LaTeX (pasada {pass_idx}/2)...")
+        result = subprocess.run(command, capture_output=True, text=True)
         if result.returncode != 0:
-            print(f"  [ERROR] {compiler} falló en la pasada {pasada}.")
-            # Mostrar las últimas 30 líneas del log para diagnóstico
-            log_lines = result.stdout.splitlines()
-            print("  Últimas líneas del log:")
-            for line in log_lines[-30:]:
-                print(f"    {line}")
-            print(f"  Comprueba el fichero {TEX_WORK} manualmente.")
+            print("[ERROR] Fallo al compilar LaTeX.")
+            for line in result.stdout.splitlines()[-25:]:
+                print(f"  {line}")
             return
 
-    # ── Renombrar PDF generado ────────────────────────────────────────────────
-    generated_pdf = TEX_WORK.replace(".tex", ".pdf")
+    generated_pdf = os.path.splitext(build_tex)[0] + ".pdf"
     if os.path.isfile(generated_pdf):
-        shutil.move(generated_pdf, PDF_OUT)
-        print(f"\n✓ PDF generado correctamente: {PDF_OUT}")
-    else:
-        print(f"\n[AVISO] No se encontró el PDF generado ({generated_pdf}).")
-
-    # ── Limpiar auxiliares LaTeX ──────────────────────────────────────────────
-    base = TEX_WORK.replace(".tex", "")
-    for ext in (".aux", ".log", ".out", ".toc", ".lof", ".lot",
-                ".bbl", ".blg", ".fls", ".fdb_latexmk"):
-        aux = base + ext
-        if os.path.isfile(aux):
-            os.remove(aux)
-    # Mantener TEX_WORK por si el usuario quiere inspeccionarlo
-    print(f"  (Fichero .tex parcheado conservado como {TEX_WORK})")
+        shutil.move(generated_pdf, "Memoria.pdf")
+        print("PDF actualizado: Memoria.pdf")
 
 
-patch_and_compile_latex()
+def run_analysis(results_dir: str = "resultados", plots_dir: str = "graficas", compile_latex: bool = True, latex_file: str = "Memoria.tex") -> AnalysisData:
+    configure_style()
+    print(f"Cargando resultados desde: {results_dir}")
+
+    data = load_all_data(results_dir)
+    print_result_consistency_warnings(data)
+
+    ensure_plot_dir(plots_dir)
+    generate_g1(data, plots_dir)
+    generate_g2(data, plots_dir)
+    generate_g3(data, plots_dir)
+    generate_g4(data, plots_dir)
+    generate_g5(data, plots_dir)
+    generate_g6(data, plots_dir)
+    print_summary(data)
+
+    if compile_latex:
+        compile_latex_document(latex_file, plots_dir, data)
+
+    return data
+
+
+def parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description="Analiza los resultados de la Practica 2 de AC.")
+    parser.add_argument("--results-dir", default="resultados", help="Directorio con los ficheros de resultados.")
+    parser.add_argument("--plots-dir", default="graficas", help="Directorio donde guardar las graficas.")
+    parser.add_argument("--latex-file", default="Memoria.tex", help="Documento LaTeX a parchear y compilar.")
+    parser.add_argument("--skip-latex", action="store_true", help="No recompilar la memoria en PDF.")
+    return parser.parse_args()
+
+
+def main() -> None:
+    args = parse_args()
+    run_analysis(
+        results_dir=args.results_dir,
+        plots_dir=args.plots_dir,
+        compile_latex=not args.skip_latex,
+        latex_file=args.latex_file,
+    )
+
+
+if __name__ == "__main__":
+    main()
