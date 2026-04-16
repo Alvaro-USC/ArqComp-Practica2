@@ -29,7 +29,7 @@ set -euo pipefail
 # Formato : v3 <n> <threads> <iter> <norm2> <ciclos>
 # ==============================================================
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+SCRIPT_DIR="$SLURM_SUBMIT_DIR"
 RESULTS_DIR="$SCRIPT_DIR/resultados"
 LOGS_DIR="$SCRIPT_DIR/logs"
 CC_BIN="${CC:-gcc}"

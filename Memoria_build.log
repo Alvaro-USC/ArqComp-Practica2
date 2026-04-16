@@ -1,4 +1,4 @@
-This is LuaHBTeX, Version 1.17.0 (TeX Live 2023/Debian)  (format=lualatex 2026.3.15)  16 APR 2026 10:27
+This is LuaHBTeX, Version 1.17.0 (TeX Live 2023/Debian)  (format=lualatex 2026.3.15)  16 APR 2026 11:35
  restricted system commands enabled.
 **Memoria_build.tex
 (./Memoria_build.tex
@@ -688,9 +688,12 @@ Package: titling 2009/09/04 v2.1d maketitle typesetting
 \thanksmargin=\skip73
 \droptitle=\skip74
 )
-No file Memoria_build.aux.
-
+(./Memoria_build.aux
+LaTeX Info: Redefining \. on input line 12.
+LaTeX Info: Redefining \% on input line 12.
+)
 \openout1 = Memoria_build.aux
+
 LaTeX Font Info:    Checking defaults for OML/cmm/m/it on input line 126.
 LaTeX Font Info:    ... okay on input line 126.
 LaTeX Font Info:    Checking defaults for OMS/cmsy/m/n on input line 126.
@@ -702,7 +705,7 @@ LaTeX Font Info:    ... okay on input line 126.
 LaTeX Font Info:    Checking defaults for TS1/cmr/m/n on input line 126.
 LaTeX Font Info:    Trying to load font information for TS1+cmr on input line 1
 26.
-(/usr/share/texlive/texmf-dist/tex/latex/base/ts1cmr.fd
+ (/usr/share/texlive/texmf-dist/tex/latex/base/ts1cmr.fd
 File: ts1cmr.fd 2023/04/13 v2.5m Standard LaTeX font definitions
 )
 LaTeX Font Info:    ... okay on input line 126.
@@ -867,6 +870,8 @@ Package caption Info: listings package is loaded.
 Package caption Info: End \AtBeginDocument code.
 \c@lstlisting=\count325
 Package hyperref Info: Link coloring ON on input line 126.
+
+(./Memoria_build.out) (./Memoria_build.out)
 \@outlinefile=\write3
 
 \openout3 = Memoria_build.out
@@ -897,132 +902,176 @@ Package microtype Info: Loading generic protrusion settings for font family
 (microtype)             For optimal results, create family-specific settings.
 (microtype)             See the microtype manual for details.
 
+Underfull \hbox (badness 10000) in paragraph at lines 127--127
 
-LaTeX Warning: Citation `saad2003' on page 1 undefined on input line 132.
+ []
 
 
 Underfull \vbox (badness 10000) has occurred while \output is active []
 
 LaTeX Font Info:    Font shape `TU/lmtt/bx/n' in size <7> not available
 (Font)              Font shape `TU/lmtt/b/n' tried instead on input line 185.
+ [1{/var/lib/texmf/fonts/map/pdftex/updmap/pdftex.map}
 
-Underfull \hbox (badness 10000) in paragraph at lines 210--214
+
+]
+Underfull \hbox (badness 10000) in paragraph at lines 236--240
 []\TU/texgyrepagella(0)/m/n/10 Se em-plea \TU/lmtt/m/n/10 __m256d \TU/texgyrepa
 gella(0)/m/n/10 (4 \TU/lmtt/m/n/10 double\TU/texgyrepagella(0)/m/n/10 /registro)
  con
  []
 
-[1{/var/lib/texmf/fonts/map/pdftex/updmap/pdftex.map}
 
-
-]
-Underfull \hbox (badness 10000) in paragraph at lines 250--252
-[]\TU/texgyrepagella(0)/m/n/10 Se es-tu-dian tam-bién \TU/lmtt/m/n/10 schedule(
-dynamic,16)\TU/texgyrepagella(0)/m/n/10 ,
- []
-
-
-Underfull \hbox (badness 10000) in paragraph at lines 250--252
-\TU/lmtt/m/n/10 schedule(guided) \TU/texgyrepagella(0)/m/n/10 y la al-ter-na-ti-
-va \TU/lmtt/m/n/10 #pragma omp
- []
-
-
-Underfull \hbox (badness 10000) in paragraph at lines 262--267
+Underfull \hbox (badness 10000) in paragraph at lines 260--265
 []\TU/texgyrepagella(0)/m/n/10 Pa-rá-me-tros fi-jos: $[][]\OT1/cmr/m/n/10 10[]
 $\TU/texgyrepagella(0)/m/n/10 , $[][]\OT1/cmr/m/n/10 15000$\TU/texgyrepagella(0
 )/m/n/10 ,
  []
 
 
-Underfull \hbox (badness 1394) in paragraph at lines 262--267
+Underfull \hbox (badness 1394) in paragraph at lines 260--265
 \TU/texgyrepagella(0)/m/n/10 la su-ma de fi-la al ele-men-to dia-go-nal. Ni-ve-l
 es de
  []
 
-
-LaTeX Warning: Reference `tab:medianas' on page 2 undefined on input line 268.
-
-
-LaTeX Warning: Reference `fig:g1' on page 2 undefined on input line 298.
-
-<graficas/g1_speedup_v2_vs_v1_O0.png, id=44, 462.528pt x 346.896pt>
+<graficas/g1_speedup_v2_vs_v1_O0.png, id=106, 433.62pt x 289.08pt>
 File: graficas/g1_speedup_v2_vs_v1_O0.png Graphic file (type png)
 <use graficas/g1_speedup_v2_vs_v1_O0.png>
 Package luatex.def Info: graficas/g1_speedup_v2_vs_v1_O0.png  used on input lin
 e 306.
-(luatex.def)             Requested size: 238.53899pt x 178.90485pt.
-
-LaTeX Warning: Reference `fig:g2' on page 2 undefined on input line 314.
-
-<graficas/g2_speedup_vs_v1O3.png, id=45, 462.528pt x 346.896pt>
+(luatex.def)             Requested size: 238.53899pt x 159.02536pt.
+<graficas/g2_speedup_vs_v1O3.png, id=108, 578.16pt x 325.215pt>
 File: graficas/g2_speedup_vs_v1O3.png Graphic file (type png)
 <use graficas/g2_speedup_vs_v1O3.png>
 Package luatex.def Info: graficas/g2_speedup_vs_v1O3.png  used on input line 32
-3.
-(luatex.def)             Requested size: 238.53899pt x 178.90485pt.
-
-Underfull \vbox (badness 10000) has occurred while \output is active []
-
- [2<./graficas/g1_speedup_v2_vs_v1_O0.png>]
-
-LaTeX Warning: Reference `fig:g3' on page 3 undefined on input line 331.
-
-<graficas/g3_speedup_v3_v4_vs_v2O3.png, id=83, 462.528pt x 346.896pt>
+0.
+(luatex.def)             Requested size: 238.53899pt x 134.17764pt.
+[2<./graficas/g1_speedup_v2_vs_v1_O0.png><./graficas/g2_speedup_vs_v1O3.png>]
+<graficas/g3_speedup_v3_v4_vs_v2O3.png, id=142, 505.89pt x 325.215pt>
 File: graficas/g3_speedup_v3_v4_vs_v2O3.png Graphic file (type png)
 <use graficas/g3_speedup_v3_v4_vs_v2O3.png>
 Package luatex.def Info: graficas/g3_speedup_v3_v4_vs_v2O3.png  used on input l
-ine 341.
-(luatex.def)             Requested size: 238.53899pt x 178.90485pt.
-
-LaTeX Warning: Reference `fig:g4' on page 3 undefined on input line 349.
-
-<graficas/g4_speedup_hilos.png, id=84, 462.528pt x 346.896pt>
+ine 335.
+(luatex.def)             Requested size: 238.53899pt x 153.3473pt.
+<graficas/g4_speedup_hilos.png, id=144, 542.025pt x 325.215pt>
 File: graficas/g4_speedup_hilos.png Graphic file (type png)
 <use graficas/g4_speedup_hilos.png>
-Package luatex.def Info: graficas/g4_speedup_hilos.png  used on input line 363.
+Package luatex.def Info: graficas/g4_speedup_hilos.png  used on input line 350.
 
-(luatex.def)             Requested size: 238.53899pt x 178.90485pt.
-
-LaTeX Warning: Reference `fig:g5' on page 3 undefined on input line 371.
-
-<graficas/g5_schedulings.png, id=85, 1011.78pt x 289.08pt>
+(luatex.def)             Requested size: 238.53899pt x 143.12482pt.
+<graficas/g5_schedulings.png, id=146, 1011.78pt x 325.215pt>
 File: graficas/g5_schedulings.png Graphic file (type png)
 <use graficas/g5_schedulings.png>
-Package luatex.def Info: graficas/g5_schedulings.png  used on input line 381.
-(luatex.def)             Requested size: 475.27817pt x 135.79703pt.
+Package luatex.def Info: graficas/g5_schedulings.png  used on input line 366.
+(luatex.def)             Requested size: 475.27817pt x 152.77167pt.
+
 
 LaTeX Warning: `h' float specifier changed to `ht'.
 
 
-LaTeX Warning: Reference `fig:g6' on page 3 undefined on input line 390.
+Underfull \hbox (badness 10000) in paragraph at lines 375--376
+[]\TU/texgyrepagella(0)/m/n/10 La Fi-gu-ra [][]6[][] com-pa-ra la va-rian-te ba-
+se con
+ []
 
 
-LaTeX Warning: File `graficas/g6_atomic_vs_critical.png' not found on input lin
-e 400.
+Underfull \vbox (badness 1442) has occurred while \output is active []
+
+<graficas/g6_atomic_vs_critical.png, id=148, 578.16pt x 252.945pt>
+File: graficas/g6_atomic_vs_critical.png Graphic file (type png)
+<use graficas/g6_atomic_vs_critical.png>
+Package luatex.def Info: graficas/g6_atomic_vs_critical.png  used on input line
+ 382.
+(luatex.def)             Requested size: 475.27817pt x 207.93343pt.
 
 
-! Package luatex.def Error: File `graficas/g6_atomic_vs_critical.png' not found
-: using draft setting.
+LaTeX Warning: `h' float specifier changed to `ht'.
 
-See the luatex.def package documentation for explanation.
-Type  H <return>  for immediate help.
- ...                                              
-                                                  
-l.400 ...twidth]{graficas/g6_atomic_vs_critical.png}
-                                                  
+
+Underfull \hbox (badness 10000) in paragraph at lines 415--419
+[]\TU/texgyrepagella(0)/m/n/10 In-tel Cor-po-ra-tion, \TU/texgyrepagella(0)/m/i
+t/10 In-tel In-trin-sics Gui-de\TU/texgyrepagella(0)/m/n/10 ,
+ []
+
+
+Underfull \hbox (badness 10000) in paragraph at lines 415--419
+[][]$\TU/lmtt/m/n/10 https://www.intel.com/content/www/us/
+ []
+
+
+Underfull \hbox (badness 1163) in paragraph at lines 415--419
+\TU/lmtt/m/n/10 en/docs/intrinsics-[]guide/$[][]\TU/texgyrepagella(0)/m/n/10 , 
+ [on-li-ne] úl-ti-ma
+ []
+
+
+Underfull \hbox (badness 10000) in paragraph at lines 421--425
+[]\TU/texgyrepagella(0)/m/n/10 OpenMP Ar-chi-tec-tu-re Re-view Board,
+ []
+
+
+Underfull \hbox (badness 10000) in paragraph at lines 421--425
+\TU/texgyrepagella(0)/m/it/10 OpenMP API v3.0 Sum-mary Spec\TU/texgyrepagella(0
+)/m/n/10 , [][]$\TU/lmtt/m/n/10 https:
+ []
+
+
+Underfull \hbox (badness 10000) in paragraph at lines 421--425
+\TU/lmtt/m/n/10 //www.openmp.org/wp-[]content/uploads/
+ []
+
+[3<./graficas/g3_speedup_v3_v4_vs_v2O3.png><./graficas/g4_speedup_hilos.png>]
+[4<./graficas/g5_schedulings.png><./graficas/g6_atomic_vs_critical.png>]
+(./Memoria_build.aux
+LaTeX Info: Redefining \. on input line 12.
+LaTeX Info: Redefining \% on input line 12.
+)
+ ***********
+LaTeX2e <2023-11-01> patch level 1
+L3 programming layer <2024-01-22>
+ ***********
+Package rerunfilecheck Info: File `Memoria_build.out' has not changed.
+(rerunfilecheck)             Checksum: C0D4A20B9FD5F86A0FF2387247C35172;2670.
+)
 
 Here is how much of LuaTeX's memory you used:
- 20724 strings out of 476553
- 305814,1977958 words of node,token memory allocated
- 27661 words of node memory still in use:
-   131 hlist, 14 vlist, 40 rule, 12 mark, 279 disc, 25 local_par, 3 dir, 53 math
-, 594 glue, 162 kern, 120 penalty, 21 margin_kern, 2047 glyph, 624 attribute, 79
- glue_spec, 314 attribute_list, 3 temp, 7 if_stack, 16 write, 9 pdf_dest, 23 pdf
-_colorstack, 4 pdf_setmatrix, 4 pdf_save, 4 pdf_restore nodes
-   avail lists: 1:1,2:3583,3:343,4:5150,5:4447,6:78,7:11588,8:31,9:10979,10:25,1
-1:1248
+ 20763 strings out of 476553
+ 305809,1977958 words of node,token memory allocated
+ 664 words of node memory still in use:
+   8 hlist, 2 vlist, 2 rule, 1 local_par, 6 glue, 4 kern, 1 penalty, 3 glyph, 18
+ attribute, 65 glue_spec, 11 attribute_list, 1 write, 2 pdf_action nodes
+   avail lists: 2:4865,3:483,4:5559,5:4915,6:105,7:14052,8:67,9:11888,10:41,11:1
+468
  42320 multiletter control sequences out of 65536+600000
  96 fonts using 11915943 bytes
  79i,11n,89p,1009b,666s stack positions out of 10000i,1000n,20000p,200000b,200000s
-!  ==> Fatal error occurred, no output PDF file produced!
+</usr/share/texmf/fonts/opentype/public/lm/lmmono8-regular.otf></usr/share/texmf
+/fonts/opentype/public/lm/lmmonolt10-bold.otf></usr/share/texmf/fonts/opentype/p
+ublic/lm/lmmono9-regular.otf></usr/share/texmf/fonts/opentype/public/lm/lmmono10
+-italic.otf></usr/share/texmf/fonts/opentype/public/tex-gyre/texgyrepagella-bold
+italic.otf></usr/share/texmf/fonts/opentype/public/tex-gyre/texgyrepagella-itali
+c.otf></usr/share/texmf/fonts/opentype/public/lm/lmmono10-regular.otf></usr/shar
+e/texmf/fonts/opentype/public/tex-gyre/texgyrepagella-regular.otf></usr/share/te
+xmf/fonts/opentype/public/tex-gyre/texgyrepagella-bold.otf></usr/share/texlive/t
+exmf-dist/fonts/type1/public/amsfonts/cm/cmex10.pfb></usr/share/texlive/texmf-di
+st/fonts/type1/public/amsfonts/cm/cmmi10.pfb></usr/share/texlive/texmf-dist/font
+s/type1/public/amsfonts/cm/cmmi6.pfb></usr/share/texlive/texmf-dist/fonts/type1/
+public/amsfonts/cm/cmmi7.pfb></usr/share/texlive/texmf-dist/fonts/type1/public/a
+msfonts/cm/cmmi8.pfb></usr/share/texlive/texmf-dist/fonts/type1/public/amsfonts/
+cm/cmmi9.pfb></usr/share/texlive/texmf-dist/fonts/type1/public/amsfonts/cm/cmr10
+.pfb></usr/share/texlive/texmf-dist/fonts/type1/public/amsfonts/cm/cmr6.pfb></us
+r/share/texlive/texmf-dist/fonts/type1/public/amsfonts/cm/cmr7.pfb></usr/share/t
+exlive/texmf-dist/fonts/type1/public/amsfonts/cm/cmr8.pfb></usr/share/texlive/te
+xmf-dist/fonts/type1/public/amsfonts/cm/cmr9.pfb></usr/share/texlive/texmf-dist/
+fonts/type1/public/amsfonts/cm/cmsy10.pfb></usr/share/texlive/texmf-dist/fonts/t
+ype1/public/amsfonts/cm/cmsy6.pfb></usr/share/texlive/texmf-dist/fonts/type1/pub
+lic/amsfonts/cm/cmsy7.pfb></usr/share/texlive/texmf-dist/fonts/type1/public/amsf
+onts/cm/cmsy9.pfb></usr/share/texlive/texmf-dist/fonts/type1/public/amsfonts/sym
+bols/msbm10.pfb>
+Output written on Memoria_build.pdf (4 pages, 502505 bytes).
+
+PDF statistics: 291 PDF objects out of 1000 (max. 8388607)
+ 227 compressed objects within 3 object streams
+ 65 named destinations out of 1000 (max. 131072)
+ 121 words of extra memory for PDF output out of 10000 (max. 100000000)
+

@@ -21,7 +21,7 @@ set -euo pipefail
 # Formato : <version> <n> <iter> <norm2> <ciclos>
 # ==============================================================
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+SCRIPT_DIR="$SLURM_SUBMIT_DIR"
 RESULTS_DIR="$SCRIPT_DIR/resultados"
 LOGS_DIR="$SCRIPT_DIR/logs"
 MAKE_BIN="${MAKE:-make}"

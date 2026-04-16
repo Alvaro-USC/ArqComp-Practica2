@@ -12,11 +12,6 @@ v4_dyn.c
 v4_gui.c
 v4_crit.c
 
-# ── Resultados y gráficas (datos locales, no van al repo) ────────
-resultados/
-graficas/
-logs/
-
 # ── Python ───────────────────────────────────────────────────────
 __pycache__/
 *.pyc

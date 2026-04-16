@@ -417,7 +417,19 @@ def generate_g6(data: AnalysisData, plots_dir: str) -> None:
     med_critical = data.omp_med["critical"]
 
     if med_static.empty or med_critical.empty:
-        print("  [AVISO] Faltan datos de static o critical; se omite G6.")
+        fig, ax = plt.subplots(figsize=(8, 3.5))
+        ax.axis("off")
+        ax.text(
+            0.5,
+            0.5,
+            "No hay datos suficientes para comparar\nreduction vs critical.\n\n"
+            "Vuelve a ejecutar EXPv3.sh para regenerar\nresultados/v3_O3_critical.txt.",
+            ha="center",
+            va="center",
+            fontsize=12,
+        )
+        save_plot(fig, plots_dir, "g6")
+        print("  [AVISO] Faltan datos de static o critical; G6 se guarda como figura informativa.")
         return
 
     fig, axes = plt.subplots(1, 3, figsize=(14, 4.5), sharey=False)
@@ -482,98 +494,347 @@ def print_summary(data: AnalysisData) -> None:
             )
 
 
-def build_table_lookup(data: AnalysisData) -> Dict[str, List[float]]:
-    med_static = data.omp_med["static"]
-    table = {
-        "v1_O0": [get_metric(data.seq_med["v1_O0"], n, "ciclos") for n in SIZES],
-        "v1_O3": [get_metric(data.seq_med["v1_O3"], n, "ciclos") for n in SIZES],
-        "v2_O0": [get_metric(data.seq_med["v2_O0"], n, "ciclos") for n in SIZES],
-        "v2_O3": [get_metric(data.seq_med["v2_O3"], n, "ciclos") for n in SIZES],
-        "v4_O0": [get_metric(data.seq_med["v4_O0"], n, "ciclos") for n in SIZES],
-        "v4_O3": [get_metric(data.seq_med["v4_O3"], n, "ciclos") for n in SIZES],
-    }
-
-    if not med_static.empty:
-        for threads in sorted(med_static["threads"].unique()):
-            table[f"v3_static_{int(threads)}"] = [get_metric(med_static, n, "ciclos", threads=int(threads)) for n in SIZES]
-
-    return table
-
-
 def format_tex_value(value: float) -> str:
     return "---" if np.isnan(value) else f"{value / 1e9:.1f}"
 
 
-def detect_table_scheme(row_labels: Iterable[str]) -> str:
-    labels = list(row_labels)
-    has_legacy_v3_o0 = any(re.search(r"v3\s+\\texttt\{-O0\}", label) for label in labels)
-    has_legacy_v4_threads = any(re.search(r"v4\s+\\texttt\{-O3\}\s*\(\d+T\)", label) for label in labels)
-    return "legacy_swapped" if has_legacy_v3_o0 or has_legacy_v4_threads else "canonical"
+def format_speedup_tex(value: float) -> str:
+    return "---" if np.isnan(value) else f"{value:.2f}$\\times$"
 
 
-def values_for_row_label(label: str, scheme: str, table_lookup: Dict[str, List[float]]) -> Optional[List[float]]:
-    if re.search(r"v1\s+\\texttt\{-O0\}", label):
-        return table_lookup.get("v1_O0")
-    if re.search(r"v1\s+\\texttt\{-O3\}", label):
-        return table_lookup.get("v1_O3")
-    if re.search(r"v2\s+\\texttt\{-O0\}", label):
-        return table_lookup.get("v2_O0")
-    if re.search(r"v2\s+\\texttt\{-O3\}", label):
-        return table_lookup.get("v2_O3")
+def format_percent_tex(value: float) -> str:
+    return "---" if np.isnan(value) else f"{value:.1f}\\%"
 
-    thread_match = re.search(r"\((\d+)T\)", label)
-    threads = int(thread_match.group(1)) if thread_match else None
 
-    if scheme == "legacy_swapped":
-        if re.search(r"v3\s+\\texttt\{-O0\}", label):
-            return table_lookup.get("v4_O0")
-        if re.search(r"v3\s+\\texttt\{-O3\}", label) and threads is None:
-            return table_lookup.get("v4_O3")
-        if re.search(r"v4\s+\\texttt\{-O3\}", label) and threads is not None:
-            return table_lookup.get(f"v3_static_{threads}")
+def variant_label(name: str) -> str:
+    return "dynamic(16)" if name == "dynamic" else name
+
+
+def best_openmp_row_for_n(data: AnalysisData, n: int) -> Optional[pd.Series]:
+    row = data.best_openmp[data.best_openmp["n"] == n]
+    return None if row.empty else row.iloc[0]
+
+
+def series_for_sizes(values: List[float]) -> str:
+    parts = [f"$n={n}$: \\textbf{{{format_speedup_tex(value)}}}" for n, value in zip(SIZES, values) if not np.isnan(value)]
+    if not parts:
+        return "---"
+    if len(parts) == 1:
+        return parts[0]
+    return ", ".join(parts[:-1]) + " y " + parts[-1]
+
+
+def speedup_range_tex(values: List[float]) -> str:
+    valid = [value for value in values if not np.isnan(value)]
+    if not valid:
+        return "---"
+    return f"entre \\textbf{{{format_speedup_tex(min(valid))}}} y \\textbf{{{format_speedup_tex(max(valid))}}}"
+
+
+def winner_counts(series_map: Dict[str, List[float]]) -> Dict[str, int]:
+    counts = {label: 0 for label in series_map}
+    for idx in range(len(SIZES)):
+        best_label = None
+        best_value = -np.inf
+        for label, values in series_map.items():
+            value = values[idx]
+            if np.isnan(value):
+                continue
+            if value > best_value:
+                best_value = value
+                best_label = label
+        if best_label is not None:
+            counts[best_label] += 1
+    return counts
+
+
+def max_threads_available(data: AnalysisData) -> Optional[int]:
+    med_static = data.omp_med["static"]
+    if med_static.empty:
+        return None
+    return int(med_static["threads"].max())
+
+
+def generate_table_rows(data: AnalysisData) -> str:
+    med_static = data.omp_med["static"]
+    max_threads = max_threads_available(data)
+    rows = [
+        ("v1 \\texttt{-O0}", [get_metric(data.seq_med["v1_O0"], n, "ciclos") for n in SIZES]),
+        ("v1 \\texttt{-O3}", [get_metric(data.seq_med["v1_O3"], n, "ciclos") for n in SIZES]),
+        ("v2 \\texttt{-O0}", [get_metric(data.seq_med["v2_O0"], n, "ciclos") for n in SIZES]),
+        ("v2 \\texttt{-O3}", [get_metric(data.seq_med["v2_O3"], n, "ciclos") for n in SIZES]),
+        ("v4 \\texttt{-O0}", [get_metric(data.seq_med["v4_O0"], n, "ciclos") for n in SIZES]),
+        ("v4 \\texttt{-O3}", [get_metric(data.seq_med["v4_O3"], n, "ciclos") for n in SIZES]),
+    ]
+
+    if not med_static.empty:
+        rows.append(("v3 \\texttt{-O3} (1T)", [get_metric(med_static, n, "ciclos", threads=1) for n in SIZES]))
+        if max_threads is not None:
+            rows.append((f"v3 \\texttt{{-O3}} ({max_threads}T)", [get_metric(med_static, n, "ciclos", threads=max_threads) for n in SIZES]))
+
+    return "\n".join(f"{label} & {' & '.join(format_tex_value(value) for value in values)} \\\\" for label, values in rows)
+
+
+def generate_abstract_results(data: AnalysisData) -> str:
+    simd_speedup_3200 = safe_div(get_metric(data.seq_med["v2_O3"], 3200, "ciclos"), get_metric(data.seq_med["v4_O3"], 3200, "ciclos"))
+    med_static = data.omp_med["static"]
+    omp_row_3200 = best_openmp_row_for_n(data, 3200)
+
+    if omp_row_3200 is not None and not med_static.empty:
+        omp_speedup = safe_div(get_metric(med_static, 3200, "ciclos", threads=1), float(omp_row_3200["ciclos"]))
+        first_sentence = (
+            f"Para $n{{=}}3200$, la versión SIMD (v4) alcanza un \\textit{{speedup}} de "
+            f"\\textbf{{{format_speedup_tex(simd_speedup_3200)}}} sobre v2\\texttt{{-O3}}, "
+            f"mientras que la mejor configuración OpenMP (v3, \\texttt{{{variant_label(str(omp_row_3200['variant']))}}}, "
+            f"{int(omp_row_3200['threads'])} hilos) consigue \\textbf{{{format_speedup_tex(omp_speedup)}}} "
+            f"respecto a v3 con 1 hilo. "
+        )
     else:
-        if re.search(r"v4\s+\\texttt\{-O0\}", label):
-            return table_lookup.get("v4_O0")
-        if re.search(r"v4\s+\\texttt\{-O3\}", label) and threads is None:
-            return table_lookup.get("v4_O3")
-        if re.search(r"v3\s+\\texttt\{-O3\}", label) and threads is not None:
-            return table_lookup.get(f"v3_static_{threads}")
+        first_sentence = (
+            f"Para $n{{=}}3200$, la versión SIMD (v4) alcanza un \\textit{{speedup}} de "
+            f"\\textbf{{{format_speedup_tex(simd_speedup_3200)}}} sobre v2\\texttt{{-O3}}. "
+        )
 
-    return None
+    max_threads = max_threads_available(data)
+    if max_threads is not None and not med_static.empty:
+        sp_small = safe_div(get_metric(med_static, 1250, "ciclos", threads=1), get_metric(med_static, 1250, "ciclos", threads=max_threads))
+        sp_large = safe_div(get_metric(med_static, 3200, "ciclos", threads=1), get_metric(med_static, 3200, "ciclos", threads=max_threads))
+        second_sentence = (
+            f"Los experimentos muestran que el escalado OpenMP depende del tamaño: "
+            f"a {max_threads} hilos, v3 pasa de \\textbf{{{format_speedup_tex(sp_small)}}} "
+            f"en $n{{=}}1250$ a \\textbf{{{format_speedup_tex(sp_large)}}} en $n{{=}}3200$.\\\\[2pt]"
+        )
+    else:
+        second_sentence = (
+            "Los experimentos muestran que el escalado OpenMP depende del tamaño del problema "
+            "y de la política de reparto utilizada.\\\\[2pt]"
+        )
+
+    return first_sentence + second_sentence
 
 
-def patch_latex_table(src: str, table_lookup: Dict[str, List[float]]) -> tuple[str, bool]:
-    pattern = re.compile(r"(\\label\{tab:medianas\}.*?\\midrule\n)(.*?)(\\bottomrule)", re.DOTALL)
+def generate_g1_text(data: AnalysisData) -> str:
+    speedups = [safe_div(get_metric(data.seq_med["v1_O0"], n, "ciclos"), get_metric(data.seq_med["v2_O0"], n, "ciclos")) for n in SIZES]
+    if all(np.isnan(value) for value in speedups):
+        return "La Figura~\\ref{fig:g1} muestra el \\textit{speedup} de v2 respecto a v1 con ambas versiones en \\texttt{-O0}."
+    if all(abs(value - 1.0) < 0.15 for value in speedups if not np.isnan(value)):
+        conclusion = "Las diferencias son moderadas, así que sin \\texttt{-O3} las optimizaciones manuales apenas cambian el rendimiento de forma sistemática."
+    elif all(value > 1.0 for value in speedups if not np.isnan(value)):
+        conclusion = "Incluso sin \\texttt{-O3}, v2 mejora de forma consistente a la versión base."
+    else:
+        conclusion = "El efecto depende del tamaño: algunas configuraciones mejoran frente a v1 y otras quedan por debajo."
+    return (
+        "La Figura~\\ref{fig:g1} muestra el \\textit{speedup} de v2 respecto a v1 con ambas "
+        f"versiones en \\texttt{{-O0}}. Los valores medidos son {series_for_sizes(speedups)}. "
+        f"{conclusion}"
+    )
+
+
+def generate_g2_text(data: AnalysisData) -> str:
+    sp_v2 = [safe_div(get_metric(data.seq_med["v1_O3"], n, "ciclos"), get_metric(data.seq_med["v2_O3"], n, "ciclos")) for n in SIZES]
+    sp_v4 = [safe_div(get_metric(data.seq_med["v1_O3"], n, "ciclos"), get_metric(data.seq_med["v4_O3"], n, "ciclos")) for n in SIZES]
+    sp_v3 = []
+    best_cfg_parts = []
+    for n in SIZES:
+        row = best_openmp_row_for_n(data, n)
+        if row is None:
+            sp_v3.append(np.nan)
+            continue
+        sp_v3.append(safe_div(get_metric(data.seq_med["v1_O3"], n, "ciclos"), float(row["ciclos"])))
+        best_cfg_parts.append(f"$n={n}$: \\texttt{{{variant_label(str(row['variant']))}}} con {int(row['threads'])} hilos")
+
+    counts = winner_counts({"v2": sp_v2, "v3": sp_v3, "v4": sp_v4})
+    dominant = max(counts, key=counts.get)
+    dominant_label = {"v2": "v2", "v3": "v3", "v4": "v4"}[dominant]
+    config_sentence = "" if not best_cfg_parts else " Las mejores configuraciones de v3 son " + ", ".join(best_cfg_parts) + "."
+    return (
+        "La Figura~\\ref{fig:g2} compara la versión secuencial optimizada (v2), la mejor "
+        "configuración OpenMP (v3) y la versión SIMD (v4) respecto a v1\\texttt{-O3}. "
+        f"Los speedups de v2 son {series_for_sizes(sp_v2)}; los de v3, {series_for_sizes(sp_v3)}; "
+        f"y los de v4, {series_for_sizes(sp_v4)}. En estos resultados, \\textbf{{{dominant_label}}} "
+        f"es la serie más rápida en {counts[dominant]}/3 tamaños.{config_sentence}"
+    )
+
+
+def generate_g3_text(data: AnalysisData) -> str:
+    sp_v4 = [safe_div(get_metric(data.seq_med["v2_O3"], n, "ciclos"), get_metric(data.seq_med["v4_O3"], n, "ciclos")) for n in SIZES]
+    sp_v3 = []
+    for n in SIZES:
+        row = best_openmp_row_for_n(data, n)
+        sp_v3.append(np.nan if row is None else safe_div(get_metric(data.seq_med["v2_O3"], n, "ciclos"), float(row["ciclos"])))
+
+    winner = "v3" if np.nanmax(sp_v3) >= np.nanmax(sp_v4) else "v4"
+    return (
+        "La Figura~\\ref{fig:g3} muestra el \\textit{speedup} de la mejor configuración "
+        "OpenMP (v3) y de la versión SIMD (v4) respecto a v2\\texttt{-O3}. "
+        f"OpenMP obtiene speedups {speedup_range_tex(sp_v3)}, mientras que SIMD logra "
+        f"{speedup_range_tex(sp_v4)}. En conjunto, \\textbf{{{winner}}} aporta la mayor "
+        "ganancia respecto a la mejor versión secuencial."
+    )
+
+
+def generate_g4_text(data: AnalysisData) -> str:
+    med_static = data.omp_med["static"]
+    max_threads = max_threads_available(data)
+    if med_static.empty or max_threads is None:
+        return (
+            "La Figura~\\ref{fig:g4} es la gráfica \\textbf{obligatoria} del enunciado y resume "
+            "el speedup de v3\\texttt{-O3} con \\texttt{schedule(static)} frente a 1 hilo."
+        )
+
+    speedups = [safe_div(get_metric(med_static, n, "ciclos", threads=1), get_metric(med_static, n, "ciclos", threads=max_threads)) for n in SIZES]
+    best_n = SIZES[int(np.nanargmax(speedups))]
+    worst_n = SIZES[int(np.nanargmin(speedups))]
+    return (
+        "La Figura~\\ref{fig:g4} es la gráfica \\textbf{obligatoria} del enunciado y resume "
+        "el speedup de v3\\texttt{-O3} con \\texttt{schedule(static)} frente a 1 hilo. "
+        f"A {max_threads} hilos, los speedups alcanzan {series_for_sizes(speedups)}. "
+        f"El mejor escalado se observa en $n={best_n}$, mientras que $n={worst_n}$ es el caso "
+        "más sensible al overhead de sincronización."
+    )
+
+
+def generate_g5_text(data: AnalysisData) -> str:
+    max_threads = max_threads_available(data)
+    if max_threads is None:
+        return "La Figura~\\ref{fig:g5} compara los tres modos de reparto de OpenMP sobre v3."
+
+    parts = []
+    for n in SIZES:
+        best_variant = None
+        best_speedup = -np.inf
+        for variant in ("static", "dynamic", "guided"):
+            med_df = data.omp_med[variant]
+            if med_df.empty:
+                continue
+            speedup = safe_div(get_metric(med_df, n, "ciclos", threads=1), get_metric(med_df, n, "ciclos", threads=max_threads))
+            if not np.isnan(speedup) and speedup > best_speedup:
+                best_speedup = speedup
+                best_variant = variant_label(variant)
+        if best_variant is not None:
+            parts.append(f"$n={n}$: \\texttt{{{best_variant}}} con \\textbf{{{format_speedup_tex(best_speedup)}}}")
+
+    if not parts:
+        return "La Figura~\\ref{fig:g5} compara los tres modos de reparto de OpenMP sobre v3."
+
+    return (
+        "La Figura~\\ref{fig:g5} compara los tres modos de reparto de OpenMP sobre v3. "
+        f"A {max_threads} hilos, la mejor política para cada tamaño es " + ", ".join(parts) + "."
+    )
+
+
+def generate_g6_text(data: AnalysisData) -> str:
+    med_static = data.omp_med["static"]
+    med_critical = data.omp_med["critical"]
+    max_threads = max_threads_available(data)
+
+    if med_static.empty or med_critical.empty or max_threads is None:
+        return (
+            "La Figura~\\ref{fig:g6} compara la variante base con "
+            "\\texttt{reduction(+:norm2)} frente a la variante con \\texttt{critical}. "
+            "Si falta alguno de los ficheros de resultados, esta comparación no podrá "
+            "actualizarse automáticamente."
+        )
+
+    summary_parts = []
+    diff_parts = []
+    for n in SIZES:
+        reduction_sp = safe_div(get_metric(med_static, n, "ciclos", threads=1), get_metric(med_static, n, "ciclos", threads=max_threads))
+        critical_sp = safe_div(get_metric(med_critical, n, "ciclos", threads=1), get_metric(med_critical, n, "ciclos", threads=max_threads))
+        if np.isnan(reduction_sp) or np.isnan(critical_sp):
+            continue
+        faster = "reduction" if reduction_sp >= critical_sp else "critical"
+        rel_gap = abs(reduction_sp - critical_sp) / max(reduction_sp, critical_sp) * 100.0
+        summary_parts.append(
+            f"$n={n}$: \\texttt{{reduction}}={format_speedup_tex(reduction_sp)}, "
+            f"\\texttt{{critical}}={format_speedup_tex(critical_sp)}"
+        )
+        diff_parts.append((n, faster, rel_gap))
+
+    if not summary_parts:
+        return (
+            "La Figura~\\ref{fig:g6} compara la variante base con "
+            "\\texttt{reduction(+:norm2)} frente a la variante con \\texttt{critical}."
+        )
+
+    max_diff = max(diff_parts, key=lambda item: item[2])
+    return (
+        "La Figura~\\ref{fig:g6} compara la variante base con "
+        "\\texttt{reduction(+:norm2)} frente a la variante con \\texttt{critical}. "
+        f"A {max_threads} hilos, se obtiene " + "; ".join(summary_parts) + ". "
+        f"La mayor diferencia relativa aparece en $n={max_diff[0]}$, donde "
+        f"\\texttt{{{max_diff[1]}}} aventaja a la otra opción en aproximadamente "
+        f"\\textbf{{{format_percent_tex(max_diff[2])}}}."
+    )
+
+
+def generate_conclusions(data: AnalysisData) -> str:
+    sp_v2_o0 = [safe_div(get_metric(data.seq_med["v1_O0"], n, "ciclos"), get_metric(data.seq_med["v2_O0"], n, "ciclos")) for n in SIZES]
+    sp_v4_vs_v2 = [safe_div(get_metric(data.seq_med["v2_O3"], n, "ciclos"), get_metric(data.seq_med["v4_O3"], n, "ciclos")) for n in SIZES]
+    med_static = data.omp_med["static"]
+    max_threads = max_threads_available(data)
+
+    if not med_static.empty and max_threads is not None:
+        sp_v3_static = [safe_div(get_metric(med_static, n, "ciclos", threads=1), get_metric(med_static, n, "ciclos", threads=max_threads)) for n in SIZES]
+        static_text = f"Con \\texttt{{schedule(static)}}, v3 alcanza {series_for_sizes(sp_v3_static)} a {max_threads} hilos."
+    else:
+        static_text = "La evaluación de v3 depende de disponer de los ficheros OpenMP generados por EXPv3.sh."
+
+    if not data.omp_med["critical"].empty and not med_static.empty and max_threads is not None:
+        reduction_sp_3200 = safe_div(get_metric(med_static, 3200, "ciclos", threads=1), get_metric(med_static, 3200, "ciclos", threads=max_threads))
+        critical_sp_3200 = safe_div(get_metric(data.omp_med["critical"], 3200, "ciclos", threads=1), get_metric(data.omp_med["critical"], 3200, "ciclos", threads=max_threads))
+        reduction_text = (
+            f"La comparación \\texttt{{reduction}} vs. \\texttt{{critical}} en $n=3200$ y {max_threads} hilos "
+            f"da \\textbf{{{format_speedup_tex(reduction_sp_3200)}}} frente a \\textbf{{{format_speedup_tex(critical_sp_3200)}}}."
+        )
+    else:
+        reduction_text = (
+            "La comparación entre \\texttt{reduction} y \\texttt{critical} debe interpretarse "
+            "solo cuando esté disponible el fichero \\texttt{resultados/v3\\_O3\\_critical.txt}."
+        )
+
+    return (
+        "\\begin{enumerate}\n"
+        f"  \\item Las optimizaciones de caché de v2 frente a v1 con \\texttt{{-O0}} producen speedups {speedup_range_tex(sp_v2_o0)}.\n"
+        f"  \\item La versión SIMD (v4) mejora a v2\\texttt{{-O3}} con speedups {speedup_range_tex(sp_v4_vs_v2)}.\n"
+        f"  \\item {static_text}\n"
+        "  \\item La mejor política de reparto de OpenMP depende del tamaño del problema, por lo que conviene estudiar \\texttt{static}, \\texttt{dynamic(16)} y \\texttt{guided} de forma separada.\n"
+        f"  \\item {reduction_text}\n"
+        "\\end{enumerate}"
+    )
+
+
+def replace_marker_block(src: str, marker: str, body: str) -> tuple[str, bool]:
+    pattern = re.compile(
+        rf"(^[ \t]*% {re.escape(marker)}_BEGIN[ \t]*\n)(.*?)(\n^[ \t]*% {re.escape(marker)}_END[ \t]*$)",
+        re.DOTALL | re.MULTILINE,
+    )
     match = pattern.search(src)
     if not match:
-        print("[AVISO] No se localizo la tabla tab:medianas en el .tex.")
+        print(f"[AVISO] No se localizo el bloque marcado {marker}.")
         return src, False
+    replaced = match.group(1) + body.rstrip() + "\n" + match.group(3)
+    return src[: match.start()] + replaced + src[match.end() :], True
 
-    old_rows = []
-    for raw_line in match.group(2).splitlines():
-        line = raw_line.strip()
-        if "&" in line and line.endswith("\\\\"):
-            old_rows.append(line)
 
-    row_labels = [line.split("&", 1)[0].strip() for line in old_rows]
-    scheme = detect_table_scheme(row_labels)
+def patch_latex_blocks(src: str, data: AnalysisData) -> tuple[str, bool]:
+    blocks = {
+        "AUTO_ABSTRACT_RESULTS": generate_abstract_results(data),
+        "AUTO_TABLE_ROWS": generate_table_rows(data),
+        "AUTO_G1_TEXT": generate_g1_text(data),
+        "AUTO_G2_TEXT": generate_g2_text(data),
+        "AUTO_G3_TEXT": generate_g3_text(data),
+        "AUTO_G4_TEXT": generate_g4_text(data),
+        "AUTO_G5_TEXT": generate_g5_text(data),
+        "AUTO_G6_TEXT": generate_g6_text(data),
+        "AUTO_CONCLUSIONS": generate_conclusions(data),
+    }
 
-    if scheme == "legacy_swapped":
-        print("[AVISO] Memoria.tex parece usar la numeracion antigua (v3=SIMD, v4=OpenMP).")
-        print("        Se actualizan solo los valores numericos respetando las etiquetas existentes.")
-
-    new_rows = []
-    for line, label in zip(old_rows, row_labels):
-        values = values_for_row_label(label, scheme, table_lookup)
-        if values is None:
-            new_rows.append(line)
-            continue
-        cols = " & ".join(format_tex_value(value) for value in values)
-        new_rows.append(f"{label} & {cols} \\\\")
-
-    new_block = match.group(1) + "\n".join(new_rows) + "\n" + match.group(3)
-    new_src = src[: match.start()] + new_block + src[match.end() :]
-    return new_src, True
+    changed = False
+    for marker, body in blocks.items():
+        src, block_changed = replace_marker_block(src, marker, body)
+        changed = changed or block_changed
+    return src, changed
 
 
 def compile_latex_document(latex_file: str, plots_dir: str, data: AnalysisData) -> None:
@@ -593,7 +854,7 @@ def compile_latex_document(latex_file: str, plots_dir: str, data: AnalysisData) 
     with open(latex_file, encoding="utf-8") as handle:
         src = handle.read()
 
-    patched_src, changed = patch_latex_table(src, build_table_lookup(data))
+    patched_src, changed = patch_latex_blocks(src, data)
     build_tex = os.path.splitext(latex_file)[0] + "_build.tex"
 
     with open(build_tex, "w", encoding="utf-8") as handle:
