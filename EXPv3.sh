@@ -124,7 +124,7 @@ src = src.replace(
 #    Se ancla en el texto exacto que aparece en v3.c después del pragma.
 src = src.replace(
     "            for (int i = 0; i < n; i++) {\n\n                const double *row = &a[i * n];",
-    "            double local_norm2 = 0.0;\n            for (int i = 0; i < n; i++) {\n\n                const double *row = &a[i * n];",
+    "            for (int i = 0; i < n; i++) {\n                double local_norm2 = 0.0;\n\n                const double *row = &a[i * n];",
     1   # solo primera ocurrencia: el for de cómputo
 )
 
