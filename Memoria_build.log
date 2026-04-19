@@ -1,4 +1,4 @@
-This is LuaHBTeX, Version 1.17.0 (TeX Live 2023/Debian)  (format=lualatex 2026.3.15)  16 APR 2026 11:35
+This is LuaHBTeX, Version 1.17.0 (TeX Live 2023/Debian)  (format=lualatex 2026.3.15)  19 APR 2026 19:06
  restricted system commands enabled.
 **Memoria_build.tex
 (./Memoria_build.tex
@@ -975,14 +975,30 @@ se con
  []
 
 
+Underfull \hbox (badness 1917) in paragraph at lines 375--376
+\TU/lmtt/m/n/10 critical\TU/texgyrepagella(0)/m/n/10 =21.61$\OMS/cmsy/m/n/10 $
+\TU/texgyrepagella(0)/m/n/10 ; $\OML/cmm/m/it/10 n \OT1/cmr/m/n/10 = 2000$\TU/t
+exgyrepagella(0)/m/n/10 : \TU/lmtt/m/n/10 reduction\TU/texgyrepagella(0)/m/n/10
+ =29.25$\OMS/cmsy/m/n/10 $\TU/texgyrepagella(0)/m/n/10 ,
+ []
+
+
+Underfull \hbox (badness 1917) in paragraph at lines 375--376
+\TU/lmtt/m/n/10 critical\TU/texgyrepagella(0)/m/n/10 =27.08$\OMS/cmsy/m/n/10 $
+\TU/texgyrepagella(0)/m/n/10 ; $\OML/cmm/m/it/10 n \OT1/cmr/m/n/10 = 3200$\TU/t
+exgyrepagella(0)/m/n/10 : \TU/lmtt/m/n/10 reduction\TU/texgyrepagella(0)/m/n/10
+ =25.43$\OMS/cmsy/m/n/10 $\TU/texgyrepagella(0)/m/n/10 ,
+ []
+
+
 Underfull \vbox (badness 1442) has occurred while \output is active []
 
-<graficas/g6_atomic_vs_critical.png, id=148, 578.16pt x 252.945pt>
+<graficas/g6_atomic_vs_critical.png, id=148, 1011.78pt x 325.215pt>
 File: graficas/g6_atomic_vs_critical.png Graphic file (type png)
 <use graficas/g6_atomic_vs_critical.png>
 Package luatex.def Info: graficas/g6_atomic_vs_critical.png  used on input line
  382.
-(luatex.def)             Requested size: 475.27817pt x 207.93343pt.
+(luatex.def)             Requested size: 475.27817pt x 152.77167pt.
 
 
 LaTeX Warning: `h' float specifier changed to `ht'.
@@ -1036,12 +1052,12 @@ Package rerunfilecheck Info: File `Memoria_build.out' has not changed.
 
 Here is how much of LuaTeX's memory you used:
  20763 strings out of 476553
- 305809,1977958 words of node,token memory allocated
+ 305805,1977958 words of node,token memory allocated
  664 words of node memory still in use:
    8 hlist, 2 vlist, 2 rule, 1 local_par, 6 glue, 4 kern, 1 penalty, 3 glyph, 18
  attribute, 65 glue_spec, 11 attribute_list, 1 write, 2 pdf_action nodes
-   avail lists: 2:4865,3:483,4:5559,5:4915,6:105,7:14052,8:67,9:11888,10:41,11:1
-468
+   avail lists: 1:2,2:4865,3:489,4:5558,5:4915,6:105,7:14127,8:67,9:11888,10:42,
+11:1480
  42320 multiletter control sequences out of 65536+600000
  96 fonts using 11915943 bytes
  79i,11n,89p,1009b,666s stack positions out of 10000i,1000n,20000p,200000b,200000s
@@ -1068,7 +1084,7 @@ ype1/public/amsfonts/cm/cmsy6.pfb></usr/share/texlive/texmf-dist/fonts/type1/pub
 lic/amsfonts/cm/cmsy7.pfb></usr/share/texlive/texmf-dist/fonts/type1/public/amsf
 onts/cm/cmsy9.pfb></usr/share/texlive/texmf-dist/fonts/type1/public/amsfonts/sym
 bols/msbm10.pfb>
-Output written on Memoria_build.pdf (4 pages, 502505 bytes).
+Output written on Memoria_build.pdf (4 pages, 556702 bytes).
 
 PDF statistics: 291 PDF objects out of 1000 (max. 8388607)
  227 compressed objects within 3 object streams

@@ -1,0 +1,126 @@
+slurmstepd: info: Setting TMPDIR to /scratch/6464399. Previous errors about TMPDIR can be discarded
+===== Jacobi v3 (OpenMP) =====
+Directorio : /mnt/netapp2/Home_FT2/home/usc/cursos/curso1523/ArqComp-Practica2
+Nodo       : c204-30
+Fecha      : Sun Apr 19 03:37:55 CEST 2026
+CPUs       : 64
+
+── Compilando v3_static [reduction + schedule(static)] ──
+── Ejecutando v3_static ──
+   v3_static  n=1250  hilos=1
+   v3_static  n=1250  hilos=2
+   v3_static  n=1250  hilos=4
+   v3_static  n=1250  hilos=8
+   v3_static  n=1250  hilos=16
+   v3_static  n=1250  hilos=32
+   v3_static  n=2000  hilos=1
+   v3_static  n=2000  hilos=2
+   v3_static  n=2000  hilos=4
+   v3_static  n=2000  hilos=8
+   v3_static  n=2000  hilos=16
+   v3_static  n=2000  hilos=32
+   v3_static  n=3200  hilos=1
+   v3_static  n=3200  hilos=2
+   v3_static  n=3200  hilos=4
+   v3_static  n=3200  hilos=8
+   v3_static  n=3200  hilos=16
+   v3_static  n=3200  hilos=32
+
+── Compilando v3_dynamic [reduction + schedule(dynamic,16)] ──
+── Ejecutando v3_dynamic ──
+   v3_dynamic  n=1250  hilos=1
+   v3_dynamic  n=1250  hilos=2
+   v3_dynamic  n=1250  hilos=4
+   v3_dynamic  n=1250  hilos=8
+   v3_dynamic  n=1250  hilos=16
+   v3_dynamic  n=1250  hilos=32
+   v3_dynamic  n=2000  hilos=1
+   v3_dynamic  n=2000  hilos=2
+   v3_dynamic  n=2000  hilos=4
+   v3_dynamic  n=2000  hilos=8
+   v3_dynamic  n=2000  hilos=16
+   v3_dynamic  n=2000  hilos=32
+   v3_dynamic  n=3200  hilos=1
+   v3_dynamic  n=3200  hilos=2
+   v3_dynamic  n=3200  hilos=4
+   v3_dynamic  n=3200  hilos=8
+   v3_dynamic  n=3200  hilos=16
+   v3_dynamic  n=3200  hilos=32
+
+── Compilando v3_guided [reduction + schedule(guided)] ──
+── Ejecutando v3_guided ──
+   v3_guided  n=1250  hilos=1
+   v3_guided  n=1250  hilos=2
+   v3_guided  n=1250  hilos=4
+   v3_guided  n=1250  hilos=8
+   v3_guided  n=1250  hilos=16
+   v3_guided  n=1250  hilos=32
+   v3_guided  n=2000  hilos=1
+   v3_guided  n=2000  hilos=2
+   v3_guided  n=2000  hilos=4
+   v3_guided  n=2000  hilos=8
+   v3_guided  n=2000  hilos=16
+   v3_guided  n=2000  hilos=32
+   v3_guided  n=3200  hilos=1
+   v3_guided  n=3200  hilos=2
+   v3_guided  n=3200  hilos=4
+   v3_guided  n=3200  hilos=8
+   v3_guided  n=3200  hilos=16
+   v3_guided  n=3200  hilos=32
+
+── Compilando v3_critical [critical + schedule(static)] ──
+── Ejecutando v3_critical ──
+   v3_critical  n=1250  hilos=1
+   v3_critical  n=1250  hilos=2
+   v3_critical  n=1250  hilos=4
+   v3_critical  n=1250  hilos=8
+   v3_critical  n=1250  hilos=16
+   v3_critical  n=1250  hilos=32
+   v3_critical  n=2000  hilos=1
+   v3_critical  n=2000  hilos=2
+   v3_critical  n=2000  hilos=4
+   v3_critical  n=2000  hilos=8
+   v3_critical  n=2000  hilos=16
+   v3_critical  n=2000  hilos=32
+   v3_critical  n=3200  hilos=1
+   v3_critical  n=3200  hilos=2
+   v3_critical  n=3200  hilos=4
+   v3_critical  n=3200  hilos=8
+   v3_critical  n=3200  hilos=16
+   v3_critical  n=3200  hilos=32
+
+===== v3 finalizado (Sun Apr 19 08:53:25 CEST 2026) =====
+Lineas esperadas por fichero: 180
+  OK    /mnt/netapp2/Home_FT2/home/usc/cursos/curso1523/ArqComp-Practica2/resultados/v3_O3_static.txt — 180 lineas
+  OK    /mnt/netapp2/Home_FT2/home/usc/cursos/curso1523/ArqComp-Practica2/resultados/v3_O3_dynamic.txt — 180 lineas
+  OK    /mnt/netapp2/Home_FT2/home/usc/cursos/curso1523/ArqComp-Practica2/resultados/v3_O3_guided.txt — 180 lineas
+  OK    /mnt/netapp2/Home_FT2/home/usc/cursos/curso1523/ArqComp-Practica2/resultados/v3_O3_critical.txt — 180 lineas
+
+Todos los ficheros de v3 se generaron correctamente.
+
+*****************************************************************************
+*                                                                           *
+*                    JOB EFFICIENCY REPORT (seff 6464399)                   *
+*                                                                           *
+*****************************************************************************
+
+Job ID: 6464399
+Cluster: finisterrae3
+User/Group: curso1523/usc
+State: COMPLETED (exit code 0)
+Nodes: 1
+Cores per node: 64
+CPU Utilized: 17:16:20
+CPU Efficiency: 5.13% of 14-00:33:04 core-walltime
+Job Wall-clock time: 05:15:31
+Memory Utilized: 80.32 MB
+Memory Efficiency: 7.84% of 1.00 GB
+
+ +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+ ++   Memory Efficiency is too small. Please review the requested memory. ++
+ ++ It seems that you do not need that much memory so we recommend        ++
+ ++ requesting less memory in other similar jobs.                         ++
+ +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+ 
+*****************************************************************************
+

@@ -98,7 +98,7 @@
        Implementación y Análisis del Método de Jacobi}
 
 \author{%
-  \textsc{Álvaro Schwiedop}\\[0.5ex]
+  \textsc{Baptiste Robin, Álvaro Schwiedop Souto}\\[0.5ex]
   \normalsize Arquitectura de Computadores \textbullet{} 2\textordmasculine{} Grao Enx. Informática\\
   \normalsize Universidade de Santiago de Compostela\\
   \normalsize \texttt{curso1523@usc.es}
@@ -114,7 +114,7 @@
     y \textit{blocking} (v2), versión paralela con OpenMP (v3) y versión
     vectorial con instrucciones AVX256 y FMA (v4).
     % AUTO_ABSTRACT_RESULTS_BEGIN
-Para $n{=}3200$, la versión SIMD (v4) alcanza un \textit{speedup} de \textbf{1.62$\times$} sobre v2\texttt{-O3}, mientras que la mejor configuración OpenMP (v3, \texttt{static}, 32 hilos) consigue \textbf{32.61$\times$} respecto a v3 con 1 hilo. Los experimentos muestran que el escalado OpenMP depende del tamaño: a 32 hilos, v3 pasa de \textbf{44.01$\times$} en $n{=}1250$ a \textbf{32.61$\times$} en $n{=}3200$.\\[2pt]
+Para $n{=}3200$, la versión SIMD (v4) alcanza un \textit{speedup} de \textbf{1.45$\times$} sobre v2\texttt{-O3}, mientras que la mejor configuración OpenMP (v3, \texttt{static}, 32 hilos) consigue \textbf{25.43$\times$} respecto a v3 con 1 hilo. Los experimentos muestran que el escalado OpenMP depende del tamaño: a 32 hilos, v3 pasa de \textbf{25.25$\times$} en $n{=}1250$ a \textbf{25.43$\times$} en $n{=}3200$.\\[2pt]
 
     % AUTO_ABSTRACT_RESULTS_END
     \textbf{\textit{Palabras clave}:} Jacobi, AVX256, FMA, OpenMP,
@@ -276,14 +276,14 @@ La Tabla~\ref{tab:medianas} resume las medianas obtenidas.
 \textbf{Versión} & $n{=}1250$ & $n{=}2000$ & $n{=}3200$ \\
 \midrule
 % AUTO_TABLE_ROWS_BEGIN
-v1 \texttt{-O0} & 57.4 & 219.4 & 897.6 \\
-v1 \texttt{-O3} & 26.3 & 103.8 & 421.6 \\
-v2 \texttt{-O0} & 50.3 & 227.2 & 1071.4 \\
-v2 \texttt{-O3} & 18.1 & 85.6 & 428.2 \\
-v4 \texttt{-O0} & 41.9 & 160.3 & 654.4 \\
-v4 \texttt{-O3} & 14.8 & 60.9 & 264.4 \\
-v3 \texttt{-O3} (1T) & 24.4 & 96.1 & 395.4 \\
-v3 \texttt{-O3} (32T) & 0.6 & 1.9 & 12.1 \\
+v1 \texttt{-O0} & 57.3 & 218.1 & 887.4 \\
+v1 \texttt{-O3} & 25.0 & 98.1 & 403.4 \\
+v2 \texttt{-O0} & 49.6 & 200.1 & 914.9 \\
+v2 \texttt{-O3} & 14.4 & 59.5 & 384.9 \\
+v4 \texttt{-O0} & 41.9 & 160.3 & 655.6 \\
+v4 \texttt{-O3} & 14.7 & 60.7 & 264.9 \\
+v3 \texttt{-O3} (1T) & 24.4 & 96.3 & 399.3 \\
+v3 \texttt{-O3} (32T) & 1.0 & 3.3 & 15.7 \\
 
 % AUTO_TABLE_ROWS_END
 \bottomrule
@@ -297,7 +297,7 @@ v3 \texttt{-O3} (32T) & 0.6 & 1.9 & 12.1 \\
 \subsection{Efecto de las optimizaciones de caché}
 
 % AUTO_G1_TEXT_BEGIN
-La Figura~\ref{fig:g1} muestra el \textit{speedup} de v2 respecto a v1 con ambas versiones en \texttt{-O0}. Los valores medidos son $n=1250$: \textbf{1.14$\times$}, $n=2000$: \textbf{0.97$\times$} y $n=3200$: \textbf{0.84$\times$}. El efecto depende del tamaño: algunas configuraciones mejoran frente a v1 y otras quedan por debajo.
+La Figura~\ref{fig:g1} muestra el \textit{speedup} de v2 respecto a v1 con ambas versiones en \texttt{-O0}. Los valores medidos son $n=1250$: \textbf{1.16$\times$}, $n=2000$: \textbf{1.09$\times$} y $n=3200$: \textbf{0.97$\times$}. El efecto depende del tamaño: algunas configuraciones mejoran frente a v1 y otras quedan por debajo.
 
 % AUTO_G1_TEXT_END
 
@@ -311,7 +311,7 @@ La Figura~\ref{fig:g1} muestra el \textit{speedup} de v2 respecto a v1 con ambas
 \subsection{Todas las versiones vs.\ v1-O3}
 
 % AUTO_G2_TEXT_BEGIN
-La Figura~\ref{fig:g2} compara la versión secuencial optimizada (v2), la mejor configuración OpenMP (v3) y la versión SIMD (v4) respecto a v1\texttt{-O3}. Los speedups de v2 son $n=1250$: \textbf{1.45$\times$}, $n=2000$: \textbf{1.21$\times$} y $n=3200$: \textbf{0.98$\times$}; los de v3, $n=1250$: \textbf{47.57$\times$}, $n=2000$: \textbf{55.53$\times$} y $n=3200$: \textbf{34.78$\times$}; y los de v4, $n=1250$: \textbf{1.78$\times$}, $n=2000$: \textbf{1.71$\times$} y $n=3200$: \textbf{1.59$\times$}. En estos resultados, \textbf{v3} es la serie más rápida en 3/3 tamaños. Las mejores configuraciones de v3 son $n=1250$: \texttt{static} con 32 hilos, $n=2000$: \texttt{static} con 32 hilos, $n=3200$: \texttt{static} con 32 hilos.
+La Figura~\ref{fig:g2} compara la versión secuencial optimizada (v2), la mejor configuración OpenMP (v3) y la versión SIMD (v4) respecto a v1\texttt{-O3}. Los speedups de v2 son $n=1250$: \textbf{1.73$\times$}, $n=2000$: \textbf{1.65$\times$} y $n=3200$: \textbf{1.05$\times$}; los de v3, $n=1250$: \textbf{25.88$\times$}, $n=2000$: \textbf{29.78$\times$} y $n=3200$: \textbf{25.69$\times$}; y los de v4, $n=1250$: \textbf{1.70$\times$}, $n=2000$: \textbf{1.61$\times$} y $n=3200$: \textbf{1.52$\times$}. En estos resultados, \textbf{v3} es la serie más rápida en 3/3 tamaños. Las mejores configuraciones de v3 son $n=1250$: \texttt{static} con 32 hilos, $n=2000$: \texttt{static} con 32 hilos, $n=3200$: \texttt{static} con 32 hilos.
 
 % AUTO_G2_TEXT_END
 
@@ -326,7 +326,7 @@ La Figura~\ref{fig:g2} compara la versión secuencial optimizada (v2), la mejor 
 \subsection{v3 y v4 vs.\ v2-O3}
 
 % AUTO_G3_TEXT_BEGIN
-La Figura~\ref{fig:g3} muestra el \textit{speedup} de la mejor configuración OpenMP (v3) y de la versión SIMD (v4) respecto a v2\texttt{-O3}. OpenMP obtiene speedups entre \textbf{32.71$\times$} y \textbf{45.79$\times$}, mientras que SIMD logra entre \textbf{1.22$\times$} y \textbf{1.62$\times$}. En conjunto, \textbf{v3} aporta la mayor ganancia respecto a la mejor versión secuencial.
+La Figura~\ref{fig:g3} muestra el \textit{speedup} de la mejor configuración OpenMP (v3) y de la versión SIMD (v4) respecto a v2\texttt{-O3}. OpenMP obtiene speedups entre \textbf{14.93$\times$} y \textbf{24.51$\times$}, mientras que SIMD logra entre \textbf{0.98$\times$} y \textbf{1.45$\times$}. En conjunto, \textbf{v3} aporta la mayor ganancia respecto a la mejor versión secuencial.
 
 % AUTO_G3_TEXT_END
 
@@ -341,7 +341,7 @@ La Figura~\ref{fig:g3} muestra el \textit{speedup} de la mejor configuración Op
 \subsection{Escalabilidad de v3 con el número de hilos}
 
 % AUTO_G4_TEXT_BEGIN
-La Figura~\ref{fig:g4} es la gráfica \textbf{obligatoria} del enunciado y resume el speedup de v3\texttt{-O3} con \texttt{schedule(static)} frente a 1 hilo. A 32 hilos, los speedups alcanzan $n=1250$: \textbf{44.01$\times$}, $n=2000$: \textbf{51.40$\times$} y $n=3200$: \textbf{32.61$\times$}. El mejor escalado se observa en $n=2000$, mientras que $n=3200$ es el caso más sensible al overhead de sincronización.
+La Figura~\ref{fig:g4} es la gráfica \textbf{obligatoria} del enunciado y resume el speedup de v3\texttt{-O3} con \texttt{schedule(static)} frente a 1 hilo. A 32 hilos, los speedups alcanzan $n=1250$: \textbf{25.25$\times$}, $n=2000$: \textbf{29.25$\times$} y $n=3200$: \textbf{25.43$\times$}. El mejor escalado se observa en $n=2000$, mientras que $n=1250$ es el caso más sensible al overhead de sincronización.
 
 % AUTO_G4_TEXT_END
 
@@ -356,7 +356,7 @@ La Figura~\ref{fig:g4} es la gráfica \textbf{obligatoria} del enunciado y resum
 \subsection{Comparación de schedulings}
 
 % AUTO_G5_TEXT_BEGIN
-La Figura~\ref{fig:g5} compara los tres modos de reparto de OpenMP sobre v3. A 32 hilos, la mejor política para cada tamaño es $n=1250$: \texttt{static} con \textbf{44.01$\times$}, $n=2000$: \texttt{static} con \textbf{51.40$\times$}, $n=3200$: \texttt{static} con \textbf{32.61$\times$}.
+La Figura~\ref{fig:g5} compara los tres modos de reparto de OpenMP sobre v3. A 32 hilos, la mejor política para cada tamaño es $n=1250$: \texttt{static} con \textbf{25.25$\times$}, $n=2000$: \texttt{static} con \textbf{29.25$\times$}, $n=3200$: \texttt{static} con \textbf{25.43$\times$}.
 
 % AUTO_G5_TEXT_END
 
@@ -372,7 +372,7 @@ La Figura~\ref{fig:g5} compara los tres modos de reparto de OpenMP sobre v3. A 3
 \subsection{Reducción reduction vs.\ critical}
 
 % AUTO_G6_TEXT_BEGIN
-La Figura~\ref{fig:g6} compara la variante base con \texttt{reduction(+:norm2)} frente a la variante con \texttt{critical}. Si falta alguno de los ficheros de resultados, esta comparación no podrá actualizarse automáticamente.
+La Figura~\ref{fig:g6} compara la variante base con \texttt{reduction(+:norm2)} frente a la variante con \texttt{critical}. A 32 hilos, se obtiene $n=1250$: \texttt{reduction}=25.25$\times$, \texttt{critical}=21.61$\times$; $n=2000$: \texttt{reduction}=29.25$\times$, \texttt{critical}=27.08$\times$; $n=3200$: \texttt{reduction}=25.43$\times$, \texttt{critical}=25.24$\times$. La mayor diferencia relativa aparece en $n=1250$, donde \texttt{reduction} aventaja a la otra opción en aproximadamente \textbf{14.4\%}.
 
 % AUTO_G6_TEXT_END
 
@@ -390,11 +390,11 @@ La Figura~\ref{fig:g6} compara la variante base con \texttt{reduction(+:norm2)} 
 
 % AUTO_CONCLUSIONS_BEGIN
 \begin{enumerate}
-  \item Las optimizaciones de caché de v2 frente a v1 con \texttt{-O0} producen speedups entre \textbf{0.84$\times$} y \textbf{1.14$\times$}.
-  \item La versión SIMD (v4) mejora a v2\texttt{-O3} con speedups entre \textbf{1.22$\times$} y \textbf{1.62$\times$}.
-  \item Con \texttt{schedule(static)}, v3 alcanza $n=1250$: \textbf{44.01$\times$}, $n=2000$: \textbf{51.40$\times$} y $n=3200$: \textbf{32.61$\times$} a 32 hilos.
+  \item Las optimizaciones de caché de v2 frente a v1 con \texttt{-O0} producen speedups entre \textbf{0.97$\times$} y \textbf{1.16$\times$}.
+  \item La versión SIMD (v4) mejora a v2\texttt{-O3} con speedups entre \textbf{0.98$\times$} y \textbf{1.45$\times$}.
+  \item Con \texttt{schedule(static)}, v3 alcanza $n=1250$: \textbf{25.25$\times$}, $n=2000$: \textbf{29.25$\times$} y $n=3200$: \textbf{25.43$\times$} a 32 hilos.
   \item La mejor política de reparto de OpenMP depende del tamaño del problema, por lo que conviene estudiar \texttt{static}, \texttt{dynamic(16)} y \texttt{guided} de forma separada.
-  \item La comparación entre \texttt{reduction} y \texttt{critical} debe interpretarse solo cuando esté disponible el fichero \texttt{resultados/v3\_O3\_critical.txt}.
+  \item La comparación \texttt{reduction} vs. \texttt{critical} en $n=3200$ y 32 hilos da \textbf{25.43$\times$} frente a \textbf{25.24$\times$}.
 \end{enumerate}
 
 % AUTO_CONCLUSIONS_END

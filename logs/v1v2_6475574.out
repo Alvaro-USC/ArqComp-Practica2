@@ -1,0 +1,66 @@
+slurmstepd: info: Setting TMPDIR to /scratch/6475574. Previous errors about TMPDIR can be discarded
+===== Jacobi v1/v2: experimentos secuenciales =====
+Directorio : /mnt/netapp2/Home_FT2/home/usc/cursos/curso1523/ArqComp-Practica2
+Nodo       : c204-9
+Fecha      : Sun Apr 19 14:45:33 CEST 2026
+CPUs       : 64
+
+── Compilando v1 y v2 con -O0 ──
+cc -O0 -Wall -o v1 v1.c -lm
+cc -O0 -Wall -o v2 v2.c -lm
+── Ejecutando v1 -O0 ──
+   v1  n=1250
+   v1  n=2000
+   v1  n=3200
+── Ejecutando v2 -O0 ──
+   v2  n=1250
+   v2  n=2000
+   v2  n=3200
+
+── Compilando v1 y v2 con -O3 ──
+cc -O3 -Wall -o v1 v1.c -lm
+cc -O3 -Wall -o v2 v2.c -lm
+── Ejecutando v1 -O3 ──
+   v1  n=1250
+   v1  n=2000
+   v1  n=3200
+── Ejecutando v2 -O3 ──
+   v2  n=1250
+   v2  n=2000
+   v2  n=3200
+
+===== v1/v2 finalizados (Sun Apr 19 18:56:41 CEST 2026) =====
+Lineas esperadas por fichero: 30
+  OK    /mnt/netapp2/Home_FT2/home/usc/cursos/curso1523/ArqComp-Practica2/resultados/v1_O0.txt — 30 lineas
+  OK    /mnt/netapp2/Home_FT2/home/usc/cursos/curso1523/ArqComp-Practica2/resultados/v1_O3.txt — 30 lineas
+  OK    /mnt/netapp2/Home_FT2/home/usc/cursos/curso1523/ArqComp-Practica2/resultados/v2_O0.txt — 30 lineas
+  OK    /mnt/netapp2/Home_FT2/home/usc/cursos/curso1523/ArqComp-Practica2/resultados/v2_O3.txt — 30 lineas
+
+Todos los ficheros de v1/v2 se generaron correctamente.
+
+*****************************************************************************
+*                                                                           *
+*                    JOB EFFICIENCY REPORT (seff 6475574)                   *
+*                                                                           *
+*****************************************************************************
+
+Job ID: 6475574
+Cluster: finisterrae3
+User/Group: curso1523/usc
+State: COMPLETED (exit code 0)
+Nodes: 1
+Cores per node: 64
+CPU Utilized: 04:10:31
+CPU Efficiency: 1.56% of 11-03:52:32 core-walltime
+Job Wall-clock time: 04:11:08
+Memory Utilized: 79.72 MB
+Memory Efficiency: 7.79% of 1.00 GB
+
+ +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+ ++   Memory Efficiency is too small. Please review the requested memory. ++
+ ++ It seems that you do not need that much memory so we recommend        ++
+ ++ requesting less memory in other similar jobs.                         ++
+ +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+ 
+*****************************************************************************
+

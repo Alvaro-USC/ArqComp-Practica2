@@ -1,6 +1,6 @@
 #!/bin/bash
 #SBATCH -n 1
-#SBATCH -c 1
+#SBATCH -c 64
 #SBATCH --mem=1G
 #SBATCH -t 08:00:00
 #SBATCH --job-name jacobi_v4

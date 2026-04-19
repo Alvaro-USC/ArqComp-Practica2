@@ -1,5 +1,0 @@
-v3_crit.c: In function ‘main’:
-v3_crit.c:136:13: error: for statement expected before ‘double’
-  136 |             double local_norm2 = 0.0;
-      |             ^~~~~~
-/var/spool/slurmd/job6264813/slurm_script: line 219: resultados/v3_O3_critical.txt: No such file or directory
