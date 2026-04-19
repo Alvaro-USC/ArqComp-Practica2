@@ -255,7 +255,7 @@ vsigma = _mm256_fmadd_pd(va, vx, vsigma);
 __m256d h = _mm256_hadd_pd(vsigma, vsigma);
 \end{lstlisting}
 
-No se usan intrínsecos \texttt{\_u} (no alineados) como exige el enunciado.
+No se usan intrínsecos \texttt{\_u} (no alineados) como exige el enunciado. Además, los elementos adicionales añadidos por el múltiplo de alineación (\texttt{n\_pad}) se inicializan a 0 explícitamente, garantizando que los cálculos vectorizados no contaminen las sumas de la reducción.
 
 %%=============================================================
 \section{Metodología experimental}
@@ -345,7 +345,7 @@ La Figura~\ref{fig:g2} compara v2\texttt{-O3}, la mejor configuración de v3
   \item \textbf{v3\texttt{-O3} (32T):} $25{,}9\times$ ($n{=}1250$),
         $29{,}8\times$ ($n{=}2000$), $25{,}7\times$ ($n{=}3200$).
         OpenMP con 32~hilos domina con diferencia, demostrando que el método
-        de Jacobi es altamente paralelizable (\textit{embarrassingly parallel}).
+        de Jacobi es altamente paralelizable con sincronización mínima por iteración.
 \end{itemize}
 % AUTO_G2_TEXT_END
 
@@ -398,9 +398,9 @@ frente a su ejecución con un solo hilo, para cada valor de~$n$.
         $3{,}96$--$4{,}09\times$ con 4T y $7{,}76$--$8{,}10\times$ con 8T).
   \item Con 16~hilos se observa un \textit{speedup} entre $14{,}9\times$
         ($n{=}1250$) y $15{,}8\times$ ($n{=}2000$), cercano al ideal de~16.
-  \item Con 32~hilos la aceleración alcanza $25{,}4\times$ ($n{=}1250$ y
-        $n{=}3200$) y $29{,}3\times$ ($n{=}2000$), mostrando una eficiencia
-        del 79--91\,\%.
+  \item Con 32~hilos la aceleración alcanza $24{,}4\times$ ($n{=}1250$),
+        $29{,}3\times$ ($n{=}2000$) y $25{,}4\times$ ($n{=}3200$), mostrando una eficiencia
+        del 76--91\,\%.
 \end{itemize}
 
 La ligera sub-linealidad a 32~hilos se explica por la contención de la

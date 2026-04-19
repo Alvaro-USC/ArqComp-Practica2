@@ -33,6 +33,7 @@ SCRIPT_DIR="$SLURM_SUBMIT_DIR"
 RESULTS_DIR="$SCRIPT_DIR/resultados"
 LOGS_DIR="$SCRIPT_DIR/logs"
 CC_BIN="${CC:-gcc}"
+MAKE_BIN="${MAKE:-make}"
 
 SIZES=(1250 2000 3200)
 THREADS=(1 2 4 8 16 32)
@@ -51,7 +52,9 @@ echo "CPUs       : $(nproc)"
 compile_variant() {
     local output="$1"
     shift
-    "$CC_BIN" -O3 -fopenmp -Wall "$@" -o "$output" v3.c -lm
+    "$MAKE_BIN" clean >/dev/null 2>&1 || true
+    "$MAKE_BIN" -B v3 CFLAGS="-O3 $*"
+    mv v3 "$output"
 }
 
 run_variant() {
