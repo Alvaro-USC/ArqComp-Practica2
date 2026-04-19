@@ -114,8 +114,15 @@
     y \textit{blocking} (v2), versión paralela con OpenMP (v3) y versión
     vectorial con instrucciones AVX256 y FMA (v4).
     % AUTO_ABSTRACT_RESULTS_BEGIN
-    La actualización automática de resultados insertará aquí el resumen cuantitativo
-    principal a partir de los ficheros de \texttt{resultados/}.\\[2pt]
+    La versión v2\texttt{-O3} alcanza un \textit{speedup} de $1{,}73\times$
+    sobre v1\texttt{-O3} para $n{=}1250$ gracias al \textit{blocking} 2D y
+    el desenrollamiento de lazos. La vectorización AVX256+FMA (v4\texttt{-O3})
+    obtiene hasta $1{,}52\times$ sobre v1\texttt{-O3} para $n{=}3200$.
+    La paralelización OpenMP con \texttt{schedule(static)} y 32~hilos logra
+    $25{,}4\times$ respecto a un hilo para $n{=}3200$, demostrando una
+    escalabilidad casi lineal. Todas las versiones convergen al mismo resultado
+    numérico (mismo $\mathit{iter}$ y $\mathit{norm2}$), validando la
+    corrección de las optimizaciones.\\[2pt]
     % AUTO_ABSTRACT_RESULTS_END
     \textbf{\textit{Palabras clave}:} Jacobi, AVX256, FMA, OpenMP,
     \textit{cache blocking}, \textit{speedup}, FinisTerrae~III.
@@ -201,8 +208,10 @@ Se aplican cuatro mejoras sobre v1:
         $[0,i)$ e $(i,n)$, eliminando la rama condicional.
   \item \textbf{Desenrollamiento $\times$4:} cuatro acumulaciones explícitas
         por iteración.
-  \item \textbf{\textit{Cache blocking}:} bloques de \texttt{BLOCK\_SIZE=64}
-        filas para mantener $x$ en caché L1/L2.
+  \item \textbf{\textit{Cache blocking} 2D:} la iteración se organiza en
+        bloques de $\texttt{BLOCK\_SIZE}{=}64$ filas \emph{y} columnas; un
+        array auxiliar \texttt{sigma\_arr[]} acumula las sumas parciales de
+        cada bloque de columnas, manteniendo $x$ en caché L1/L2.
 \end{enumerate}
 
 \subsection{v3 --- OpenMP}
@@ -276,14 +285,14 @@ La Tabla~\ref{tab:medianas} resume las medianas obtenidas.
 \textbf{Versión} & $n{=}1250$ & $n{=}2000$ & $n{=}3200$ \\
 \midrule
 % AUTO_TABLE_ROWS_BEGIN
-v1 \texttt{-O0}       & 57.5 & 221.8 & 901.2 \\
-v1 \texttt{-O3}       & 26.4 & 105.9 & 425.0 \\
-v2 \texttt{-O0}       & 58.4 & 222.3 & 895.2 \\
-v2 \texttt{-O3}       & 26.5 &  99.8 & 400.9 \\
-v4 \texttt{-O0}       & 42.1 & 162.0 & 661.9 \\
-v4 \texttt{-O3}       & 14.8 &  65.8 & 272.9 \\
-v3 \texttt{-O3} (1T)  & 24.4 &  96.6 & 395.9 \\
-v3 \texttt{-O3} (32T) &  2.4 &   4.8 &  18.7 \\
+v1 \texttt{-O0}       & 57.3 & 218.1 & 887.4 \\
+v1 \texttt{-O3}       & 25.0 &  98.1 & 403.4 \\
+v2 \texttt{-O0}       & 49.6 & 200.1 & 914.9 \\
+v2 \texttt{-O3}       & 14.4 &  59.5 & 384.9 \\
+v4 \texttt{-O0}       & 41.9 & 160.3 & 655.6 \\
+v4 \texttt{-O3}       & 14.7 &  60.7 & 264.9 \\
+v3 \texttt{-O3} (1T)  & 24.4 &  96.3 & 399.3 \\
+v3 \texttt{-O3} (32T) &  1.0 &   3.3 &  15.7 \\
 % AUTO_TABLE_ROWS_END
 \bottomrule
 \end{tabular}
@@ -297,8 +306,17 @@ v3 \texttt{-O3} (32T) &  2.4 &   4.8 &  18.7 \\
 
 % AUTO_G1_TEXT_BEGIN
 La Figura~\ref{fig:g1} muestra el \textit{speedup} de v2 respecto a v1 con ambas
-versiones en \texttt{-O0}.  Este bloque se sustituirá automáticamente con la
-interpretación cuantitativa calculada desde \texttt{resultados/}.
+versiones compiladas con \texttt{-O0}.  Los valores obtenidos son $1{,}16\times$
+para $n{=}1250$, $1{,}09\times$ para $n{=}2000$ y $0{,}97\times$ para $n{=}3200$.
+
+El resultado revela que, sin optimizaciones del compilador, las transformaciones
+manuales de v2 aportan un beneficio marginal para tamaños pequeños, pero la
+sobrecarga del \textit{blocking} 2D (gestión de índices extra, \texttt{memset}
+del array auxiliar \texttt{sigma\_arr} y control de flujo adicional) llega a
+penalizar el rendimiento para $n{=}3200$ ($s{<}1$).  Esta observación refuerza
+la importancia del flag \texttt{-O3}: el compilador necesita las optimizaciones
+habilitadas para poder explotar efectivamente la mejora de localidad que
+aporta el \textit{cache blocking}.
 % AUTO_G1_TEXT_END
 
 \begin{figure}[H]
@@ -311,10 +329,24 @@ interpretación cuantitativa calculada desde \texttt{resultados/}.
 \subsection{Todas las versiones vs.\ v1-O3}
 
 % AUTO_G2_TEXT_BEGIN
-La Figura~\ref{fig:g2} compara la versión secuencial optimizada (v2), la mejor
-configuración OpenMP (v3) y la versión SIMD (v4) respecto a v1\texttt{-O3}.
-Este bloque será sustituido automáticamente con la interpretación cuantitativa
-obtenida a partir de los ficheros de resultados.
+La Figura~\ref{fig:g2} compara v2\texttt{-O3}, la mejor configuración de v3
+(\texttt{schedule(static)}, 32~hilos) y v4\texttt{-O3} respecto a v1\texttt{-O3}.
+
+\begin{itemize}
+  \item \textbf{v2\texttt{-O3}:} $1{,}73\times$ ($n{=}1250$),
+        $1{,}65\times$ ($n{=}2000$), $1{,}05\times$ ($n{=}3200$).
+        El \textit{speedup} decrece con~$n$: para tamaños grandes la matriz~$A$
+        ya no cabe en caché y el \textit{blocking} aporta menos ventaja.
+  \item \textbf{v4\texttt{-O3}:} $1{,}70\times$ ($n{=}1250$),
+        $1{,}61\times$ ($n{=}2000$), $1{,}52\times$ ($n{=}3200$).
+        La vectorización SIMD aporta aceleraciones consistentes, especialmente
+        para $n{=}3200$, donde la parte derecha del bucle $(i,n]$ domina y
+        puede vectorizarse eficazmente hasta \texttt{n\_pad}.
+  \item \textbf{v3\texttt{-O3} (32T):} $25{,}9\times$ ($n{=}1250$),
+        $29{,}8\times$ ($n{=}2000$), $25{,}7\times$ ($n{=}3200$).
+        OpenMP con 32~hilos domina con diferencia, demostrando que el método
+        de Jacobi es altamente paralelizable (\textit{embarrassingly parallel}).
+\end{itemize}
 % AUTO_G2_TEXT_END
 
 \begin{figure}[H]
@@ -328,10 +360,20 @@ obtenida a partir de los ficheros de resultados.
 \subsection{v3 y v4 vs.\ v2-O3}
 
 % AUTO_G3_TEXT_BEGIN
-La Figura~\ref{fig:g3} muestra el \textit{speedup} de la mejor configuración
-OpenMP (v3) y de la versión SIMD (v4) respecto a v2\texttt{-O3}.  Este bloque
-será sustituido automáticamente con los valores calculados desde
-\texttt{resultados/}.
+La Figura~\ref{fig:g3} muestra el \textit{speedup} de v3 (32~hilos,
+\texttt{static}) y v4\texttt{-O3} respecto a v2\texttt{-O3}.
+
+La versión SIMD v4 obtiene $0{,}98\times$ para $n{=}1250$ y $n{=}2000$
+(rendimiento prácticamente igual a v2) y $1{,}45\times$ para $n{=}3200$.
+Para tamaños pequeños, la vectorización manual no supera a las optimizaciones
+que el compilador ya aplica sobre v2 con \texttt{-O3} (auto-vectorización);
+para $n{=}3200$, la alineación explícita y el FMA sí aportan ganancia
+medible.
+
+La versión OpenMP con 32~hilos logra $15{,}0\times$ ($n{=}1250$),
+$18{,}1\times$ ($n{=}2000$) y $24{,}5\times$ ($n{=}3200$) respecto a
+v2\texttt{-O3}, confirmando que la paralelización multinúcleo ofrece la
+mayor aceleración de todas las optimizaciones evaluadas.
 % AUTO_G3_TEXT_END
 
 \begin{figure}[H]
@@ -346,9 +388,25 @@ será sustituido automáticamente con los valores calculados desde
 
 % AUTO_G4_TEXT_BEGIN
 La Figura~\ref{fig:g4} es la gráfica \textbf{obligatoria} del enunciado y
-resume el speedup de v3\texttt{-O3} con \texttt{schedule(static)} frente a su
-ejecución con un hilo.  Este bloque se sustituirá automáticamente con el
-análisis cuantitativo de los resultados medidos.
+resume el \textit{speedup} de v3\texttt{-O3} con \texttt{schedule(static)}
+frente a su ejecución con un solo hilo, para cada valor de~$n$.
+
+\begin{itemize}
+  \item Con 2~hilos el \textit{speedup} es prácticamente ideal: $2{,}0\times$
+        para los tres tamaños.
+  \item Con 4 y 8~hilos se mantiene la escalabilidad lineal (entre
+        $3{,}96$--$4{,}09\times$ con 4T y $7{,}76$--$8{,}10\times$ con 8T).
+  \item Con 16~hilos se observa un \textit{speedup} entre $14{,}9\times$
+        ($n{=}1250$) y $15{,}8\times$ ($n{=}2000$), cercano al ideal de~16.
+  \item Con 32~hilos la aceleración alcanza $25{,}4\times$ ($n{=}1250$ y
+        $n{=}3200$) y $29{,}3\times$ ($n{=}2000$), mostrando una eficiencia
+        del 79--91\,\%.
+\end{itemize}
+
+La ligera sub-linealidad a 32~hilos se explica por la contención de la
+barrera implícita del \texttt{omp for} y por el acceso compartido al
+vector~$x$ entre sockets NUMA.  No obstante, la escalabilidad es excelente
+para un problema \textit{memory-bound} con $\mathcal{O}(n^2)$ datos.
 % AUTO_G4_TEXT_END
 
 \begin{figure}[H]
@@ -362,9 +420,21 @@ análisis cuantitativo de los resultados medidos.
 \subsection{Comparación de schedulings}
 
 % AUTO_G5_TEXT_BEGIN
-La Figura~\ref{fig:g5} compara los tres modos de reparto de OpenMP sobre v3.
-Este bloque se sustituirá automáticamente con el resumen numérico de la mejor
-política para cada tamaño.
+La Figura~\ref{fig:g5} compara los tres modos de reparto de OpenMP
+(\texttt{static}, \texttt{dynamic(16)} y \texttt{guided}) sobre v3 con
+\texttt{reduction(+:norm2)}, para cada tamaño y número de hilos.
+
+Para los tres valores de~$n$, el \texttt{schedule(static)} ofrece el mejor
+rendimiento en todos los conteos de hilos.  Con 32~hilos y $n{=}3200$:
+\texttt{static} obtiene $15{,}7 \times 10^9$~ciclos, frente a $20{,}8$
+(\texttt{dynamic}) y $21{,}6$ (\texttt{guided}).  Este resultado es
+esperable: el método de Jacobi distribuye una carga perfectamente equilibrada
+(cada fila tiene exactamente $n$ operaciones), por lo que la asignación
+estática de bloques contiguos a cada hilo maximiza la localidad de caché.
+Los schedulings dinámico y guiado añaden una sobrecarga de gestión de cola
+de trabajo innecesaria en un problema sin desbalanceo de carga, perdiendo
+hasta un 37\,\% de rendimiento respecto a \texttt{static} para $n{=}3200$
+con 32~hilos.
 % AUTO_G5_TEXT_END
 
 \begin{figure*}[h]
@@ -380,9 +450,21 @@ política para cada tamaño.
 
 % AUTO_G6_TEXT_BEGIN
 La Figura~\ref{fig:g6} compara la variante base con
-\texttt{reduction(+:norm2)} frente a la variante con \texttt{critical}.  Este
-bloque se sustituirá automáticamente con el análisis cuantitativo extraído de
-los ficheros de resultados.
+\texttt{reduction(+:norm2)} frente a la variante con \texttt{critical},
+ambas con \texttt{schedule(static)}.
+
+Los resultados muestran un rendimiento prácticamente idéntico entre ambas
+estrategias para todos los conteos de hilos.  Con 32~hilos y $n=3200$:
+\texttt{reduction} obtiene $15{,}7 \times 10^9$~ciclos frente a $15{,}8$
+de \texttt{critical} (diferencia menor al $1\%$). Con un solo hilo, ambas
+variantes son indistinguibles (unos $399 \times 10^9$ ciclos).
+
+La escasa diferencia se debe a que la sección crítica solo acumula una suma
+escalar (\texttt{norm2~+=~local\_norm2}), operación de duración despreciable
+frente a la barrera implícita del \texttt{omp for}.  En la práctica, la
+cláusula \texttt{reduction} es preferible por su claridad semántica y
+portabilidad, aunque en este caso no aporta una ganancia medible respecto a
+la implementación manual con \texttt{critical}.
 % AUTO_G6_TEXT_END
 
 \begin{figure*}[h]
@@ -398,9 +480,35 @@ los ficheros de resultados.
 \section{Conclusiones}
 
 % AUTO_CONCLUSIONS_BEGIN
-Se han implementado y evaluado cuatro versiones del método de Jacobi.  Este
-bloque se sustituirá automáticamente con las conclusiones cuantitativas
-extraídas de los ficheros de resultados.
+Se han implementado y evaluado cuatro versiones del método de Jacobi sobre
+FinisTerrae~III, con los siguientes resultados principales:
+
+\begin{enumerate}
+  \item \textbf{Corrección numérica:} las cuatro versiones producen
+        exactamente las mismas iteraciones y norma residual para cada
+        tamaño ($\mathit{iter}{=}5156$, $7625$ y $12035$ para $n{=}1250$,
+        $2000$ y $3200$ respectivamente), validando que las optimizaciones
+        no alteran el resultado.
+  \item \textbf{Optimizaciones de caché (v2):} el \textit{blocking} 2D,
+        el desenrollamiento~$\times 4$ y la división de lazos aportan hasta
+        $1{,}73\times$ con \texttt{-O3}, pero requieren del compilador para
+        amortizar la sobrecarga (con \texttt{-O0} la ganancia es nula o
+        negativa para $n{=}3200$).
+  \item \textbf{Vectorización SIMD (v4):} los intrínsecos AVX256~+~FMA
+        alcanzan $1{,}52\times$ sobre v1\texttt{-O3} para $n{=}3200$,
+        rendimiento comparable a v2\texttt{-O3}. La ganancia limitada se
+        explica porque el compilador con \texttt{-O3} ya auto-vectoriza
+        parcialmente los bucles de v2.
+  \item \textbf{OpenMP (v3):} la paralelización con 32~hilos y
+        \texttt{schedule(static)} logra hasta $29{,}3\times$ respecto a un
+        hilo ($n{=}2000$) y $25{,}7\times$ respecto a v1\texttt{-O3}
+        ($n{=}3200$), siendo con diferencia la optimización más efectiva.
+  \item \textbf{Scheduling:} \texttt{static} es la mejor política para Jacobi
+        por su carga perfectamente equilibrada; \texttt{dynamic} y
+        \texttt{guided} añaden hasta un 37\,\% de sobrecarga innecesaria.
+  \item \textbf{Reduction vs.\,critical:} ambas estrategias son
+        prácticamente equivalentes, con diferencias inferiores al~1\,\%.
+\end{enumerate}
 % AUTO_CONCLUSIONS_END
 
 Como trabajo futuro se propone combinar v3 y v4 (SIMD+OpenMP) y estudiar el
