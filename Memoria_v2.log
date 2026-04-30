@@ -1,4 +1,4 @@
-This is LuaHBTeX, Version 1.17.0 (TeX Live 2023/Debian)  (format=lualatex 2026.3.15)  30 APR 2026 22:10
+This is LuaHBTeX, Version 1.17.0 (TeX Live 2023/Debian)  (format=lualatex 2026.3.15)  30 APR 2026 22:19
  restricted system commands enabled.
 **Memoria_v2.tex
 (./Memoria_v2.tex
@@ -939,10 +939,10 @@ LaTeX Font Info:    Font shape `TU/lmtt/bx/n' in size <10> not available
 File: graficas/g2_speedup_vs_v1O3.png Graphic file (type png)
 <use graficas/g2_speedup_vs_v1O3.png>
 Package luatex.def Info: graficas/g2_speedup_vs_v1O3.png  used on input line 35
-3.
+4.
 (luatex.def)             Requested size: 238.53899pt x 134.17764pt.
 
-Underfull \hbox (badness 1454) in paragraph at lines 372--377
+Underfull \hbox (badness 1454) in paragraph at lines 374--379
 []\TU/LatinModernRoman(0)/m/n/10 La ver-sión OpenMP con 32 hi-los lo-gra $\OT1
 /cmr/m/n/10 15[]0\OMS/cmsy/m/n/10 $
  []
@@ -951,7 +951,7 @@ Underfull \hbox (badness 1454) in paragraph at lines 372--377
 File: graficas/g3_speedup_v3_v4_vs_v2O3.png Graphic file (type png)
 <use graficas/g3_speedup_v3_v4_vs_v2O3.png>
 Package luatex.def Info: graficas/g3_speedup_v3_v4_vs_v2O3.png  used on input l
-ine 380.
+ine 382.
 (luatex.def)             Requested size: 238.53899pt x 153.3473pt.
 
 Underfull \vbox (badness 10000) has occurred while \output is active []
@@ -959,29 +959,29 @@ Underfull \vbox (badness 10000) has occurred while \output is active []
 <graficas/g4_speedup_hilos.png, id=150, 542.025pt x 325.215pt>
 File: graficas/g4_speedup_hilos.png Graphic file (type png)
 <use graficas/g4_speedup_hilos.png>
-Package luatex.def Info: graficas/g4_speedup_hilos.png  used on input line 413.
+Package luatex.def Info: graficas/g4_speedup_hilos.png  used on input line 415.
 
 (luatex.def)             Requested size: 238.53899pt x 143.12482pt.
 <graficas/g5_schedulings.png, id=151, 1011.78pt x 325.215pt>
 File: graficas/g5_schedulings.png Graphic file (type png)
 <use graficas/g5_schedulings.png>
-Package luatex.def Info: graficas/g5_schedulings.png  used on input line 423.
+Package luatex.def Info: graficas/g5_schedulings.png  used on input line 425.
 (luatex.def)             Requested size: 420.81929pt x 135.2644pt.
 <graficas/g6_atomic_vs_critical.png, id=152, 1011.78pt x 325.215pt>
 File: graficas/g6_atomic_vs_critical.png Graphic file (type png)
 <use graficas/g6_atomic_vs_critical.png>
 Package luatex.def Info: graficas/g6_atomic_vs_critical.png  used on input line
- 428.
+ 430.
 (luatex.def)             Requested size: 420.81929pt x 135.2644pt.
  [3<./graficas/g2_speedup_vs_v1O3.png><./graficas/g3_speedup_v3_v4_vs_v2O3.png><
 ./graficas/g4_speedup_hilos.png>]
-Underfull \hbox (badness 5008) in paragraph at lines 457--460
+Underfull \hbox (badness 5008) in paragraph at lines 459--462
 []\TU/LatinModernRoman(0)/m/n/10 La Fi-gu-ra [][]6[][] com-pa-ra la va-rian-te 
 ba-se con
  []
 
 
-Underfull \hbox (badness 2707) in paragraph at lines 495--500
+Underfull \hbox (badness 2707) in paragraph at lines 497--503
 []\TU/LatinModernRoman(0)/b/n/10 Vec-to-ri-za-ción SIMD (v4): \TU/LatinModernR
 oman(0)/m/n/10 los in-trín-se-cos
  []
@@ -990,18 +990,18 @@ oman(0)/m/n/10 los in-trín-se-cos
 Underfull \vbox (badness 1584) has occurred while \output is active []
 
  [4<./graficas/g5_schedulings.png><./graficas/g6_atomic_vs_critical.png>]
-Underfull \hbox (badness 10000) in paragraph at lines 525--529
+Underfull \hbox (badness 10000) in paragraph at lines 528--532
 []\TU/LatinModernRoman(0)/m/n/10 In-tel Cor-po-ra-tion, \TU/LatinModernRoman(0)
 /m/it/10 In-tel In-trin-sics Gui-de\TU/LatinModernRoman(0)/m/n/10 ,
  []
 
 
-Underfull \hbox (badness 10000) in paragraph at lines 525--529
+Underfull \hbox (badness 10000) in paragraph at lines 528--532
 [][]$\TU/lmtt/m/n/10 https://www.intel.com/content/www/us/en/
  []
 
 
-Underfull \hbox (badness 10000) in paragraph at lines 531--535
+Underfull \hbox (badness 10000) in paragraph at lines 534--538
 \TU/lmtt/m/n/10 wp-[]content/uploads/OpenMP3.0-[]SummarySpec.
  []
 
@@ -1019,15 +1019,12 @@ L3 programming layer <2024-01-22>
 
 LaTeX Font Warning: Some font shapes were not available, defaults substituted.
 
-
-LaTeX Warning: Label(s) may have changed. Rerun to get cross-references right.
-
 Package rerunfilecheck Info: File `Memoria_v2.out' has not changed.
 (rerunfilecheck)             Checksum: C0D4A20B9FD5F86A0FF2387247C35172;2670.
 )
 
 Here is how much of LuaTeX's memory you used:
- 20831 strings out of 476553
+ 20830 strings out of 476553
  305798,1977958 words of node,token memory allocated
  681 words of node memory still in use:
    8 hlist, 2 vlist, 2 rule, 1 local_par, 6 glue, 5 kern, 1 penalty, 3 glyph, 22
@@ -1037,8 +1034,6 @@ Here is how much of LuaTeX's memory you used:
  42381 multiletter control sequences out of 65536+600000
  101 fonts using 9069743 bytes
  79i,12n,89p,1006b,666s stack positions out of 10000i,1000n,20000p,200000b,200000s
-
-warning  (pdf backend): unreferenced destination with name 'figure.caption.7'
 </usr/share/texmf/fonts/opentype/public/lm/lmroman8-regular.otf></usr/share/texm
 f/fonts/opentype/public/lm/lmroman8-bold.otf></usr/share/texmf/fonts/opentype/pu
 blic/lm/lmmono8-regular.otf></usr/share/texmf/fonts/opentype/public/lm/lmmonolt1
@@ -1067,10 +1062,10 @@ s/type1/public/amsfonts/cm/cmsy10.pfb></usr/share/texlive/texmf-dist/fonts/type1
 amsfonts/cm/cmsy7.pfb></usr/share/texlive/texmf-dist/fonts/type1/public/amsfonts
 /cm/cmsy9.pfb></usr/share/texlive/texmf-dist/fonts/type1/public/amsfonts/symbols
 /msbm10.pfb>
-Output written on Memoria_v2.pdf (5 pages, 587904 bytes).
+Output written on Memoria_v2.pdf (5 pages, 588108 bytes).
 
-PDF statistics: 347 PDF objects out of 1000 (max. 8388607)
- 261 compressed objects within 3 object streams
- 67 named destinations out of 1000 (max. 131072)
+PDF statistics: 346 PDF objects out of 1000 (max. 8388607)
+ 260 compressed objects within 3 object streams
+ 66 named destinations out of 1000 (max. 131072)
  121 words of extra memory for PDF output out of 10000 (max. 100000000)
 
