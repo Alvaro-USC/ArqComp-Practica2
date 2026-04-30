@@ -339,8 +339,9 @@ La Figura~\ref{fig:g2} compara v2\texttt{-O3}, la mejor configuración de v3
   \item \textbf{v4\texttt{-O3}:} $1{,}70\times$ ($n{=}1250$),
         $1{,}61\times$ ($n{=}2000$), $1{,}52\times$ ($n{=}3200$).
         La vectorización SIMD aporta aceleraciones consistentes, especialmente
-        para $n{=}3200$, donde la parte derecha del bucle $(i,n]$ domina y
-        puede vectorizarse eficazmente hasta \texttt{n\_pad}.
+        para $n{=}3200$, donde el mayor tamaño de los bucles amortiza de forma
+        más efectiva el coste de las reducciones horizontales y las
+        operaciones de preámbulo/epílogo vectorial.
   \item \textbf{v3\texttt{-O3} (32T):} $25{,}9\times$ ($n{=}1250$),
         $29{,}8\times$ ($n{=}2000$), $25{,}7\times$ ($n{=}3200$).
         OpenMP con 32~hilos domina con diferencia, demostrando que el método
@@ -365,9 +366,10 @@ La Figura~\ref{fig:g3} muestra el \textit{speedup} de v3 (32~hilos,
 La versión SIMD v4 obtiene $0{,}98\times$ para $n{=}1250$ y $n{=}2000$
 (rendimiento prácticamente igual a v2) y $1{,}45\times$ para $n{=}3200$.
 Para tamaños pequeños, la vectorización manual no supera a las optimizaciones
-que el compilador ya aplica sobre v2 con \texttt{-O3} (auto-vectorización);
-para $n{=}3200$, la alineación explícita y el FMA sí aportan ganancia
-medible.
+que el compilador ya aplica sobre v2 con \texttt{-O3} (auto-vectorización y
+desenrollamiento); sin embargo, para $n{=}3200$, v4 saca una ventaja notable al
+mantener un patrón de acceso puramente secuencial a la memoria, evitando el
+cuello de botella por \textit{strides} que asfixia a la versión bloqueada (v2).
 
 La versión OpenMP con 32~hilos logra $15{,}0\times$ ($n{=}1250$),
 $18{,}1\times$ ($n{=}2000$) y $24{,}5\times$ ($n{=}3200$) respecto a
@@ -494,9 +496,10 @@ FinisTerrae~III, con los siguientes resultados principales:
         se compensa para tamaños pequeños donde $x$ es el factor limitante.
   \item \textbf{Vectorización SIMD (v4):} los intrínsecos AVX256~+~FMA
         alcanzan $1{,}52\times$ sobre v1\texttt{-O3} para $n{=}3200$,
-        rendimiento comparable a v2\texttt{-O3}. La ganancia limitada se
-        explica porque el compilador con \texttt{-O3} ya auto-vectoriza
-        parcialmente los bucles de v2.
+        superando a v2 en tamaños grandes. Esto se explica porque, a diferencia
+        del \textit{blocking} de v2, v4 respeta el acceso secuencial a filas,
+        lo que permite explotar el hardware SIMD sin castigar a los prefetchers
+        ni al TLB.
   \item \textbf{OpenMP (v3):} la paralelización con 32~hilos y
         \texttt{schedule(static)} logra hasta $29{,}3\times$ respecto a un
         hilo ($n{=}2000$) y $25{,}7\times$ respecto a v1\texttt{-O3}
