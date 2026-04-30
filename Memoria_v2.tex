@@ -304,14 +304,15 @@ La Figura~\ref{fig:g1} muestra el \textit{speedup} de v2 respecto a v1 con ambas
 versiones compiladas con \texttt{-O0}.  Los valores obtenidos son $1{,}16\times$
 para $n{=}1250$, $1{,}09\times$ para $n{=}2000$ y $0{,}97\times$ para $n{=}3200$.
 
-El resultado revela que, sin optimizaciones del compilador, las transformaciones
-manuales de v2 aportan un beneficio marginal para tamaños pequeños, pero la
-sobrecarga del \textit{blocking} 2D (gestión de índices extra, \texttt{memset}
-del array auxiliar \texttt{sigma\_arr} y control de flujo adicional) llega a
-penalizar el rendimiento para $n{=}3200$ ($s<1$).  Esta observación refuerza
-la importancia del flag \texttt{-O3}: el compilador necesita las optimizaciones
-habilitadas para poder explotar efectivamente la mejora de localidad que
-aporta el \textit{cache blocking}.
+El resultado revela que, sin optimizaciones del compilador, la sobrecarga de
+gestión de los bloques 2D (bucles anidados adicionales, cálculo de índices y
+uso de \texttt{sigma\_arr}) supera al beneficio teórico de la localidad de
+caché. Para $n{=}3200$, el \textit{speedup} cae por debajo de 1 debido a que
+el acceso por bloques de columnas introduce saltos de memoria (\textit{strides})
+en la matriz $A$, lo que perjudica severamente la localidad espacial y la
+eficiencia del \textit{prefetching} de hardware frente al acceso secuencial de v1.
+El compilador con \texttt{-O3} es fundamental para minimizar esta sobrecarga
+mediante el desenrollamiento y la vectorización.
 % AUTO_G1_TEXT_END
 
 \begin{figure}[H]
@@ -330,8 +331,11 @@ La Figura~\ref{fig:g2} compara v2\texttt{-O3}, la mejor configuración de v3
 \begin{itemize}
   \item \textbf{v2\texttt{-O3}:} $1{,}73\times$ ($n{=}1250$),
         $1{,}65\times$ ($n{=}2000$), $1{,}05\times$ ($n{=}3200$).
-        El \textit{speedup} decrece con~$n$: para tamaños grandes la matriz~$A$
-        ya no cabe en caché y el \textit{blocking} aporta menos ventaja.
+        El \textit{speedup} decrece drásticamente al aumentar~$n$. Para
+        tamaños grandes, el coste de los fallos de caché provocados por el
+        acceso no secuencial a la matriz~$A$ (inherente al \textit{blocking}
+        de columnas) y la presión sobre el TLB terminan eclipsando la ganancia
+        obtenida por mantener el vector~$x$ en caché.
   \item \textbf{v4\texttt{-O3}:} $1{,}70\times$ ($n{=}1250$),
         $1{,}61\times$ ($n{=}2000$), $1{,}52\times$ ($n{=}3200$).
         La vectorización SIMD aporta aceleraciones consistentes, especialmente
@@ -414,6 +418,19 @@ para un problema \textit{memory-bound} con $\mathcal{O}(n^2)$ datos.
 
 \subsection{Comparación de schedulings}
 
+\begin{figure*}[!t]
+  \centering
+  \includegraphics[width=0.85\textwidth]{graficas/g5_schedulings.png}
+  \caption{Comparación de schedulings OpenMP para v3 y
+           $n\in\{1250,2000,3200\}$.}
+  \label{fig:g5}
+  \vspace{1.5em}
+  \includegraphics[width=0.85\textwidth]{graficas/g6_atomic_vs_critical.png}
+  \caption{Comparación de reducción \texttt{reduction} vs.\ \texttt{critical}
+           en v3 (speedup frente a 1 hilo).}
+  \label{fig:g6}
+\end{figure*}
+
 % AUTO_G5_TEXT_BEGIN
 La Figura~\ref{fig:g5} compara los tres modos de reparto de OpenMP
 (\texttt{static}, \texttt{dynamic(16)} y \texttt{guided}) sobre v3 con
@@ -432,14 +449,7 @@ hasta un 37\,\% de rendimiento respecto a \texttt{static} para $n{=}3200$
 con 32~hilos.
 % AUTO_G5_TEXT_END
 
-\begin{figure*}[h]
-  \vspace{-4pt}
-  \centering
-  \includegraphics[width=0.96\textwidth]{graficas/g5_schedulings.png}
-  \caption{Comparación de schedulings OpenMP para v3 y
-           $n\in\{1250,2000,3200\}$.}
-  \label{fig:g5}
-\end{figure*}
+
 
 \subsection{Reducción reduction vs.\ critical}
 
@@ -462,14 +472,7 @@ portabilidad, aunque en este caso no aporta una ganancia medible respecto a
 la implementación manual con \texttt{critical}.
 % AUTO_G6_TEXT_END
 
-\begin{figure*}[h]
-  \vspace{-4pt}
-  \centering
-  \includegraphics[width=0.96\textwidth]{graficas/g6_atomic_vs_critical.png}
-  \caption{Comparación de reducción \texttt{reduction} vs.\ \texttt{critical}
-           en v3.}
-  \label{fig:g6}
-\end{figure*}
+
 
 %%=============================================================
 \section{Conclusiones}
@@ -484,11 +487,11 @@ FinisTerrae~III, con los siguientes resultados principales:
         tamaño ($\mathit{iter}{=}5156$, $7625$ y $12035$ para $n{=}1250$,
         $2000$ y $3200$ respectivamente), validando que las optimizaciones
         no alteran el resultado.
-  \item \textbf{Optimizaciones de caché (v2):} el \textit{blocking} 2D,
-        el desenrollamiento~$\times 4$ y la división de lazos aportan hasta
-        $1{,}73\times$ con \texttt{-O3}, pero requieren del compilador para
-        amortizar la sobrecarga (con \texttt{-O0} la ganancia es nula o
-        negativa para $n{=}3200$).
+  \item \textbf{Optimizaciones de caché (v2):} el \textit{blocking} 2D y
+        el desenrollamiento aportan hasta $1{,}73\times$ con \texttt{-O3},
+        pero su eficacia cae drásticamente con~$n$. El patrón de acceso por
+        bloques perjudica la localidad espacial de la matriz~$A$, lo que solo
+        se compensa para tamaños pequeños donde $x$ es el factor limitante.
   \item \textbf{Vectorización SIMD (v4):} los intrínsecos AVX256~+~FMA
         alcanzan $1{,}52\times$ sobre v1\texttt{-O3} para $n{=}3200$,
         rendimiento comparable a v2\texttt{-O3}. La ganancia limitada se
