@@ -1,0 +1,540 @@
+%% ============================================================
+%%  Memoria Práctica 2 – Arquitectura de Computadores
+%%  Método de Jacobi: Multinúcleo y extensiones SIMD
+%%  Compilar con: lualatex memoria.tex  (2 pasadas)
+%% ============================================================
+\documentclass[a4paper,twocolumn]{article}
+
+%% ── Fuentes (LuaLaTeX/MiKTeX) ──────────────────────────────
+%% ORDEN CRÍTICO: babel ANTES que fontspec en LuaLaTeX
+\usepackage[spanish]{babel}
+\usepackage{fontspec}
+\defaultfontfeatures{Ligatures=TeX}
+%% TeX Gyre Pagella cargada por nombre de fichero (no requiere instalación
+%% separada: viene con MiKTeX en el paquete tex-gyre).
+%% Si sigue fallando, instala el paquete "tex-gyre" desde MiKTeX Console
+%% o descomenta la línea con Latin Modern:
+%\setmainfont{Latin Modern Roman}
+ \setmainfont{Latin Modern Roman}
+\linespread{1.05}
+\usepackage{microtype}
+
+%% ── Matemáticas ─────────────────────────────────────────────
+\usepackage{amsmath, amssymb}
+
+%% ── Geometría ───────────────────────────────────────────────
+\usepackage[hmarginratio=1:1, top=28mm, bottom=22mm,
+            left=18mm, right=18mm, columnsep=18pt]{geometry}
+
+%% ── Figuras / tablas ────────────────────────────────────────
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage[hang,small,labelfont=bf,up,textfont=it,up]{caption}
+\usepackage{float}
+
+%% ── Listas ──────────────────────────────────────────────────
+\usepackage{enumitem}
+\setlist[itemize]{noitemsep, topsep=2pt}
+\setlist[enumerate]{noitemsep, topsep=2pt}
+
+%% ── Código fuente ───────────────────────────────────────────
+\usepackage{listings}
+\usepackage{xcolor}
+\definecolor{codebg}{HTML}{F5F5FA}
+\definecolor{kwcol}{HTML}{0057AE}
+\definecolor{cmcol}{HTML}{777788}
+\lstset{
+  language=C,
+  backgroundcolor=\color{codebg},
+  frame=single, rulecolor=\color{gray!35},
+  basicstyle=\ttfamily\scriptsize,
+  keywordstyle=\color{kwcol}\bfseries,
+  commentstyle=\color{cmcol}\itshape,
+  numbers=none,
+  breaklines=true,
+  xleftmargin=3pt, xrightmargin=3pt,
+  aboveskip=4pt, belowskip=4pt
+}
+
+%% ── Abstract ────────────────────────────────────────────────
+\usepackage{abstract}
+\renewcommand{\abstractnamefont}{\normalfont\bfseries}
+\renewcommand{\abstracttextfont}{\normalfont\small\itshape}
+
+%% ── Secciones (igual que plantilla) ────────────────────────
+\usepackage{titlesec}
+\renewcommand\thesection{\Roman{section}}
+\renewcommand\thesubsection{\Alph{subsection}}
+\titleformat{\section}[block]{\large\scshape\centering}{\thesection.}{1em}{}
+\titleformat{\subsection}[block]{\normalsize\bfseries}{\thesubsection.}{0.8em}{}
+\titlespacing*{\section}{0pt}{8pt}{4pt}
+\titlespacing*{\subsection}{0pt}{5pt}{2pt}
+
+%% ── Cabecera / pie ──────────────────────────────────────────
+\usepackage{fancyhdr}
+\pagestyle{fancy}
+\fancyhead{}\fancyfoot{}
+\fancyhead[C]{\small\itshape Práctica 2 AC --- Jacobi multinúcleo y SIMD}
+\fancyfoot[C]{\thepage}
+\renewcommand{\headrulewidth}{0.4pt}
+
+%% ── Hipervínculos ───────────────────────────────────────────
+\usepackage{hyperref}
+\hypersetup{colorlinks=true, linkcolor=black, citecolor=black, urlcolor=blue,
+            pdftitle={Memoria Practica 2 AC}, pdfauthor={Alvaro Schwiedop}}
+
+%% ── Título ──────────────────────────────────────────────────
+\usepackage{titling}
+\setlength{\droptitle}{-4\baselineskip}
+\pretitle{\begin{center}\LARGE\bfseries}
+\posttitle{\end{center}\vspace{-4pt}}
+
+\title{Programación Multinúcleo y Extensiones SIMD:\\[4pt]
+       Implementación y Análisis del Método de Jacobi}
+
+\author{%
+  \textsc{Baptiste Robin, Álvaro Schwiedop Souto}\\[0.5ex]
+  \normalsize Arquitectura de Computadores \textbullet{} 2\textordmasculine{} Grao Enx. Informática\\
+  \normalsize Universidade de Santiago de Compostela\\
+  \normalsize \texttt{baptiste.robin@rai.usc.es, alvaro.schwiedop@rai.usc.es}
+}
+\date{\today}
+
+\renewcommand{\maketitlehookd}{%
+  \begin{abstract}
+    \noindent
+    Se implementan cuatro versiones del método iterativo de Jacobi en C sobre el
+    supercomputador FinisTerrae~III del CESGA: versión secuencial de referencia
+    (v1), versión optimizada para caché con división de lazos, desenrollamiento
+    y \textit{blocking} (v2), versión paralela con OpenMP (v3) y versión
+    vectorial con instrucciones AVX256 y FMA (v4).
+    % AUTO_ABSTRACT_RESULTS_BEGIN
+    La versión v2\texttt{-O3} alcanza un \textit{speedup} de $1{,}73\times$
+    sobre v1\texttt{-O3} para $n{=}1250$ gracias al \textit{blocking} 2D y
+    el desenrollamiento de lazos. La vectorización AVX256+FMA (v4\texttt{-O3})
+    obtiene hasta $1{,}52\times$ sobre v1\texttt{-O3} para $n{=}3200$.
+    La paralelización OpenMP con \texttt{schedule(static)} y 32~hilos logra
+    $25{,}4\times$ respecto a un hilo para $n{=}3200$, demostrando una
+    escalabilidad casi lineal. Todas las versiones convergen al mismo resultado
+    numérico (mismo $\mathit{iter}$ y $\mathit{norm2}$), validando la
+    corrección de las optimizaciones.\\[2pt]
+    % AUTO_ABSTRACT_RESULTS_END
+    \textbf{\textit{Palabras clave}:} Jacobi, AVX256, FMA, OpenMP,
+    \textit{cache blocking}, \textit{speedup}, FinisTerrae~III.
+  \end{abstract}
+}
+
+%% ============================================================
+\begin{document}
+\maketitle
+
+%%=============================================================
+\section{Introducción}
+
+El método de Jacobi~\cite{saad2003} es un algoritmo iterativo clásico para la
+resolución de sistemas $Ax{=}b$ con matriz diagonalmente dominante.  Partiendo de
+$x^{(0)}{=}\mathbf{0}$, en cada iteración se actualiza:
+\[
+  x_i^{(k+1)} = \frac{1}{a_{ii}}\!\left(b_i - \sum_{j \neq i} a_{ij}\,x_j^{(k)}\right)
+\]
+hasta que $\|x^{(k+1)}-x^{(k)}\|_2 < \text{tol}$.  La doble suma implica
+$\mathcal{O}(n^2)$ operaciones por iteración, lo que hace que tamaños grandes
+sean costosos y susceptibles de aceleración mediante optimizaciones de bajo nivel.
+
+El objetivo es implementar cuatro versiones de complejidad creciente, medirlas en
+FinisTerrae~III (Intel Xeon Platinum 8352Y, 2.2~GHz, 64~núcleos por nodo) y
+cuantificar el \textit{speedup} obtenido.  La Sección~II describe las
+implementaciones; la Sección~III, la metodología experimental; la Sección~IV,
+los resultados; la Sección~V, las conclusiones.
+
+%%=============================================================
+\section{Implementaciones}
+
+\subsection{v1 --- Secuencial base}
+
+Traducción directa del pseudocódigo del enunciado sin ninguna
+optimización manual. El algoritmo recibe la matriz $A$, el vector
+$b$, la tolerancia \texttt{tol} y el máximo de iteraciones
+\texttt{max\_iter}; itera actualizando $x$ hasta convergencia:
+
+\begin{center}
+\small
+\begin{tabular}{l}
+\hline
+\textbf{Entradas:} $A\in\mathbb{R}^{n\times n}$, $b,x\in\mathbb{R}^n$,
+  \texttt{tol}, \texttt{max\_iter}\\
+\textbf{Aux:} $x\_new\in\mathbb{R}^n$\\
+\hline
+\textbf{para} $\mathit{iter}=0$ \textbf{hasta} $\mathit{max\_iter}$:\\
+\quad $\mathit{norm2} \leftarrow 0$\\
+\quad \textbf{para} $i=0$ \textbf{hasta} $n-1$:\\
+\quad\quad $\sigma \leftarrow 0$\\
+\quad\quad \textbf{para} $j=0$ \textbf{hasta} $n-1$:\\
+\quad\quad\quad \textbf{si} $i \neq j$: $\;\sigma \mathrel{+}= a[i][j]\cdot x[j]$\\
+\quad\quad $x\_new[i] \leftarrow (b[i]-\sigma)\,/\,a[i][i]$\\
+\quad\quad $\mathit{norm2} \mathrel{+}= (x\_new[i]-x[i])^2$\\
+\quad $x \leftarrow x\_new$\\
+\quad \textbf{si} $\sqrt{\mathit{norm2}} < \mathit{tol}$: \textbf{terminar}\\
+\textbf{Salida:} imprimir $\mathit{norm2}$\\
+\hline
+\end{tabular}
+\end{center}
+
+La implementación en C introduce la condición \texttt{if(i!=j)}
+dentro del bucle interno, lo cual genera una rama innecesaria:
+
+\begin{lstlisting}
+for (int j = 0; j < n; j++)
+  if (i != j)
+    sigma += a[i*n+j] * x[j];
+x_new[i] = (b[i]-sigma) / a[i*n+i];
+\end{lstlisting}
+
+Se usa como referencia de rendimiento y corrección numérica.
+
+\subsection{v2 --- Optimizaciones de caché}
+
+Se aplican cuatro mejoras sobre v1:
+
+\begin{enumerate}
+  \item \textbf{Reducción de instrucciones:} puntero de fila
+        \texttt{const double *row=\&a[i*n]}, elimina el recalculo del índice.
+  \item \textbf{División de lazos:} el bucle \texttt{j} se parte en
+        $[0,i)$ e $(i,n)$, eliminando la rama condicional.
+  \item \textbf{Desenrollamiento $\times$4:} cuatro acumulaciones explícitas
+        por iteración.
+  \item \textbf{\textit{Cache blocking} 2D:} la iteración se organiza en
+        bloques de $\texttt{BLOCK\_SIZE}{=}64$ filas \emph{y} columnas; un
+        array auxiliar \texttt{sigma\_arr[]} acumula las sumas parciales de
+        cada bloque de columnas, manteniendo $x$ en caché L1/L2.
+\end{enumerate}
+
+\subsection{v3 --- OpenMP}
+
+La región \texttt{parallel} se sitúa \textit{fuera} del bucle de
+iteraciones para mantener vivos los hilos entre iteraciones y evitar
+\textit{fork/join} repetido.  La variante base usa
+\texttt{reduction(+:norm2)} con \texttt{schedule(static)} y, a partir del mismo
+fuente, se compilan las variantes \texttt{dynamic(16)}, \texttt{guided} y
+\texttt{critical}.  La sincronización entre iteraciones se realiza mediante
+barreras implícitas y un bloque \texttt{omp single}:
+
+\begin{lstlisting}
+#pragma omp parallel default(none) \
+    shared(a,b,x,x_new,n,norm2,...)
+{
+  while (...) {
+    #pragma omp for schedule(static) \
+        reduction(+:norm2)
+    for (int i=0; i<n; i++) { ... }
+    #pragma omp single
+    { converged = sqrt(norm2) < tol; iter++; }
+    #pragma omp for schedule(static)
+    for (int i=0; i<n; i++) x[i] = x_new[i];
+  }
+}
+\end{lstlisting}
+
+\subsection{v4 --- AVX256 + FMA}
+
+Se emplea \texttt{\_\_m256d} (4~\texttt{double}/registro) con
+\texttt{\_mm256\_fmadd\_pd}.  La memoria se reserva alineada a 32~B con
+\texttt{aligned\_alloc} y el \textit{stride} de fila se redondea a múltiplo
+de~4 (\texttt{n\_pad}).  La reducción horizontal usa \texttt{\_mm256\_hadd\_pd}:
+
+\begin{lstlisting}
+__m256d va = _mm256_load_pd(&row[j]);
+__m256d vx = _mm256_load_pd(&x[j]);
+vsigma = _mm256_fmadd_pd(va, vx, vsigma);
+/* reduccion horizontal al final */
+__m256d h = _mm256_hadd_pd(vsigma, vsigma);
+\end{lstlisting}
+
+No se usan intrínsecos \texttt{\_u} (no alineados) como exige el enunciado. Además, los elementos adicionales añadidos por el múltiplo de alineación (\texttt{n\_pad}) se inicializan a 0 explícitamente, garantizando que los cálculos vectorizados no contaminen las sumas de la reducción.
+
+%%=============================================================
+\section{Metodología experimental}
+
+Los experimentos se ejecutan en FinisTerrae~III mediante trabajos SLURM en la
+partición \texttt{short}.  El tiempo se mide en \textbf{ciclos de reloj} con
+\texttt{get\_counter()} basada en el TSC, englobando sólo el cómputo iterativo.
+Para cada configuración se toman \textbf{10 medidas independientes} y se
+selecciona la \textbf{mediana} para reducir perturbaciones del SO.
+
+Parámetros fijos: $\text{tol}{=}10^{-5}$, $\text{max\_iter}{=}15000$,
+$\texttt{srand}(42)$, dominancia diagonal garantizada sumando la suma de fila
+al elemento diagonal.  Niveles de optimización: \texttt{-O0} y \texttt{-O3};
+v3 usa \texttt{-fopenmp}; v4 añade \mbox{\texttt{-mavx2 -mfma}}.  Hilos evaluados:
+$\{1,2,4,8,16,32\}$.
+
+La Tabla~\ref{tab:medianas} resume las medianas obtenidas.
+
+\begin{table}[tb]
+{\footnotesize
+\caption{Medianas de ciclos ($\times 10^9$) por versión y tamaño}
+\label{tab:medianas}
+\centering
+\setlength{\tabcolsep}{5pt}
+\begin{tabular}{lrrr}
+\toprule
+\textbf{Versión} & $n{=}1250$ & $n{=}2000$ & $n{=}3200$ \\
+\midrule
+% AUTO_TABLE_ROWS_BEGIN
+v1 \texttt{-O0}       & 57.3 & 218.1 & 887.4 \\
+v1 \texttt{-O3}       & 25.0 &  98.1 & 403.4 \\
+v2 \texttt{-O0}       & 49.6 & 200.1 & 914.9 \\
+v2 \texttt{-O3}       & 14.4 &  59.5 & 384.9 \\
+v4 \texttt{-O0}       & 41.9 & 160.3 & 655.6 \\
+v4 \texttt{-O3}       & 14.7 &  60.7 & 264.9 \\
+v3 \texttt{-O3} (1T)  & 24.4 &  96.3 & 399.3 \\
+v3 \texttt{-O3} (32T) &  1.0 &   3.3 &  15.7 \\
+% AUTO_TABLE_ROWS_END
+\bottomrule
+\end{tabular}
+}
+\end{table}
+
+%%=============================================================
+\section{Resultados y análisis}
+
+\subsection{Efecto de las optimizaciones de caché}
+
+% AUTO_G1_TEXT_BEGIN
+La Figura~\ref{fig:g1} muestra el \textit{speedup} de v2 respecto a v1 con ambas
+versiones compiladas con \texttt{-O0}.  Los valores obtenidos son $1{,}16\times$
+para $n{=}1250$, $1{,}09\times$ para $n{=}2000$ y $0{,}97\times$ para $n{=}3200$.
+
+El resultado revela que, sin optimizaciones del compilador, las transformaciones
+manuales de v2 aportan un beneficio marginal para tamaños pequeños, pero la
+sobrecarga del \textit{blocking} 2D (gestión de índices extra, \texttt{memset}
+del array auxiliar \texttt{sigma\_arr} y control de flujo adicional) llega a
+penalizar el rendimiento para $n{=}3200$ ($s<1$).  Esta observación refuerza
+la importancia del flag \texttt{-O3}: el compilador necesita las optimizaciones
+habilitadas para poder explotar efectivamente la mejora de localidad que
+aporta el \textit{cache blocking}.
+% AUTO_G1_TEXT_END
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=\linewidth]{graficas/g1_speedup_v2_vs_v1_O0.png}
+  \caption{Speedup v2/v1 con \texttt{-O0}.}
+  \label{fig:g1}
+\end{figure}
+
+\subsection{Todas las versiones vs.\ v1-O3}
+
+% AUTO_G2_TEXT_BEGIN
+La Figura~\ref{fig:g2} compara v2\texttt{-O3}, la mejor configuración de v3
+(\texttt{schedule(static)}, 32~hilos) y v4\texttt{-O3} respecto a v1\texttt{-O3}.
+
+\begin{itemize}
+  \item \textbf{v2\texttt{-O3}:} $1{,}73\times$ ($n{=}1250$),
+        $1{,}65\times$ ($n{=}2000$), $1{,}05\times$ ($n{=}3200$).
+        El \textit{speedup} decrece con~$n$: para tamaños grandes la matriz~$A$
+        ya no cabe en caché y el \textit{blocking} aporta menos ventaja.
+  \item \textbf{v4\texttt{-O3}:} $1{,}70\times$ ($n{=}1250$),
+        $1{,}61\times$ ($n{=}2000$), $1{,}52\times$ ($n{=}3200$).
+        La vectorización SIMD aporta aceleraciones consistentes, especialmente
+        para $n{=}3200$, donde la parte derecha del bucle $(i,n]$ domina y
+        puede vectorizarse eficazmente hasta \texttt{n\_pad}.
+  \item \textbf{v3\texttt{-O3} (32T):} $25{,}9\times$ ($n{=}1250$),
+        $29{,}8\times$ ($n{=}2000$), $25{,}7\times$ ($n{=}3200$).
+        OpenMP con 32~hilos domina con diferencia, demostrando que el método
+        de Jacobi es altamente paralelizable con sincronización mínima por iteración.
+\end{itemize}
+% AUTO_G2_TEXT_END
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=\linewidth]{graficas/g2_speedup_vs_v1O3.png}
+  \caption{Speedup de v2\texttt{-O3}, la mejor configuración de v3 y
+           v4\texttt{-O3} respecto a v1\texttt{-O3}.}
+  \label{fig:g2}
+\end{figure}
+
+\subsection{v3 y v4 vs.\ v2-O3}
+
+% AUTO_G3_TEXT_BEGIN
+La Figura~\ref{fig:g3} muestra el \textit{speedup} de v3 (32~hilos,
+\texttt{static}) y v4\texttt{-O3} respecto a v2\texttt{-O3}.
+
+La versión SIMD v4 obtiene $0{,}98\times$ para $n{=}1250$ y $n{=}2000$
+(rendimiento prácticamente igual a v2) y $1{,}45\times$ para $n{=}3200$.
+Para tamaños pequeños, la vectorización manual no supera a las optimizaciones
+que el compilador ya aplica sobre v2 con \texttt{-O3} (auto-vectorización);
+para $n{=}3200$, la alineación explícita y el FMA sí aportan ganancia
+medible.
+
+La versión OpenMP con 32~hilos logra $15{,}0\times$ ($n{=}1250$),
+$18{,}1\times$ ($n{=}2000$) y $24{,}5\times$ ($n{=}3200$) respecto a
+v2\texttt{-O3}, confirmando que la paralelización multinúcleo ofrece la
+mayor aceleración de todas las optimizaciones evaluadas.
+% AUTO_G3_TEXT_END
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=\linewidth]{graficas/g3_speedup_v3_v4_vs_v2O3.png}
+  \caption{Speedup de la mejor configuración de v3 y de v4\texttt{-O3}
+           respecto a v2\texttt{-O3}.}
+  \label{fig:g3}
+\end{figure}
+
+\subsection{Escalabilidad de v3 con el número de hilos}
+
+% AUTO_G4_TEXT_BEGIN
+La Figura~\ref{fig:g4} es la gráfica \textbf{obligatoria} del enunciado y
+resume el \textit{speedup} de v3\texttt{-O3} con \texttt{schedule(static)}
+frente a su ejecución con un solo hilo, para cada valor de~$n$.
+
+\begin{itemize}
+  \item Con 2~hilos el \textit{speedup} es prácticamente ideal: $2{,}0\times$
+        para los tres tamaños.
+  \item Con 4 y 8~hilos se mantiene la escalabilidad lineal (entre
+        $3{,}96$--$4{,}09\times$ con 4T y $7{,}76$--$8{,}10\times$ con 8T).
+  \item Con 16~hilos se observa un \textit{speedup} entre $14{,}9\times$
+        ($n{=}1250$) y $15{,}8\times$ ($n{=}2000$), cercano al ideal de~16.
+  \item Con 32~hilos la aceleración alcanza $24{,}4\times$ ($n{=}1250$),
+        $29{,}3\times$ ($n{=}2000$) y $25{,}4\times$ ($n{=}3200$), mostrando una eficiencia
+        del 76--91\,\%.
+\end{itemize}
+
+La ligera sub-linealidad a 32~hilos se explica por la contención de la
+barrera implícita del \texttt{omp for} y por el acceso compartido al
+vector~$x$ entre sockets NUMA.  No obstante, la escalabilidad es excelente
+para un problema \textit{memory-bound} con $\mathcal{O}(n^2)$ datos.
+% AUTO_G4_TEXT_END
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=\linewidth]{graficas/g4_speedup_hilos.png}
+  \caption{Speedup de v3\texttt{-O3} (\texttt{schedule(static)}) frente a
+           1~hilo para cada $n$.  Línea discontinua: ideal lineal.}
+  \label{fig:g4}
+\end{figure}
+
+\subsection{Comparación de schedulings}
+
+% AUTO_G5_TEXT_BEGIN
+La Figura~\ref{fig:g5} compara los tres modos de reparto de OpenMP
+(\texttt{static}, \texttt{dynamic(16)} y \texttt{guided}) sobre v3 con
+\texttt{reduction(+:norm2)}, para cada tamaño y número de hilos.
+
+Para los tres valores de~$n$, el \texttt{schedule(static)} ofrece el mejor
+rendimiento en todos los conteos de hilos.  Con 32~hilos y $n{=}3200$:
+\texttt{static} obtiene $15{,}7 \times 10^9$~ciclos, frente a $20{,}8$
+(\texttt{dynamic}) y $21{,}6$ (\texttt{guided}).  Este resultado es
+esperable: el método de Jacobi distribuye una carga perfectamente equilibrada
+(cada fila tiene exactamente $n$ operaciones), por lo que la asignación
+estática de bloques contiguos a cada hilo maximiza la localidad de caché.
+Los schedulings dinámico y guiado añaden una sobrecarga de gestión de cola
+de trabajo innecesaria en un problema sin desbalanceo de carga, perdiendo
+hasta un 37\,\% de rendimiento respecto a \texttt{static} para $n{=}3200$
+con 32~hilos.
+% AUTO_G5_TEXT_END
+
+\begin{figure*}[h]
+  \vspace{-4pt}
+  \centering
+  \includegraphics[width=0.96\textwidth]{graficas/g5_schedulings.png}
+  \caption{Comparación de schedulings OpenMP para v3 y
+           $n\in\{1250,2000,3200\}$.}
+  \label{fig:g5}
+\end{figure*}
+
+\subsection{Reducción reduction vs.\ critical}
+
+% AUTO_G6_TEXT_BEGIN
+La Figura~\ref{fig:g6} compara la variante base con
+\texttt{reduction(+:norm2)} frente a la variante con \texttt{critical},
+ambas con \texttt{schedule(static)}.
+
+Los resultados muestran un rendimiento prácticamente idéntico entre ambas
+estrategias para todos los conteos de hilos.  Con 32~hilos y $n=3200$:
+\texttt{reduction} obtiene $15{,}7 \times 10^9$~ciclos frente a $15{,}8$
+de \texttt{critical} (diferencia menor al $1\%$). Con un solo hilo, ambas
+variantes son indistinguibles (unos $399 \times 10^9$ ciclos).
+
+La escasa diferencia se debe a que la sección crítica solo acumula una suma
+escalar (\texttt{norm2~+=~local\_norm2}), operación de duración despreciable
+frente a la barrera implícita del \texttt{omp for}.  En la práctica, la
+cláusula \texttt{reduction} es preferible por su claridad semántica y
+portabilidad, aunque en este caso no aporta una ganancia medible respecto a
+la implementación manual con \texttt{critical}.
+% AUTO_G6_TEXT_END
+
+\begin{figure*}[h]
+  \vspace{-4pt}
+  \centering
+  \includegraphics[width=0.96\textwidth]{graficas/g6_atomic_vs_critical.png}
+  \caption{Comparación de reducción \texttt{reduction} vs.\ \texttt{critical}
+           en v3.}
+  \label{fig:g6}
+\end{figure*}
+
+%%=============================================================
+\section{Conclusiones}
+
+% AUTO_CONCLUSIONS_BEGIN
+Se han implementado y evaluado cuatro versiones del método de Jacobi sobre
+FinisTerrae~III, con los siguientes resultados principales:
+
+\begin{enumerate}
+  \item \textbf{Corrección numérica:} las cuatro versiones producen
+        exactamente las mismas iteraciones y norma residual para cada
+        tamaño ($\mathit{iter}{=}5156$, $7625$ y $12035$ para $n{=}1250$,
+        $2000$ y $3200$ respectivamente), validando que las optimizaciones
+        no alteran el resultado.
+  \item \textbf{Optimizaciones de caché (v2):} el \textit{blocking} 2D,
+        el desenrollamiento~$\times 4$ y la división de lazos aportan hasta
+        $1{,}73\times$ con \texttt{-O3}, pero requieren del compilador para
+        amortizar la sobrecarga (con \texttt{-O0} la ganancia es nula o
+        negativa para $n{=}3200$).
+  \item \textbf{Vectorización SIMD (v4):} los intrínsecos AVX256~+~FMA
+        alcanzan $1{,}52\times$ sobre v1\texttt{-O3} para $n{=}3200$,
+        rendimiento comparable a v2\texttt{-O3}. La ganancia limitada se
+        explica porque el compilador con \texttt{-O3} ya auto-vectoriza
+        parcialmente los bucles de v2.
+  \item \textbf{OpenMP (v3):} la paralelización con 32~hilos y
+        \texttt{schedule(static)} logra hasta $29{,}3\times$ respecto a un
+        hilo ($n{=}2000$) y $25{,}7\times$ respecto a v1\texttt{-O3}
+        ($n{=}3200$), siendo con diferencia la optimización más efectiva.
+  \item \textbf{Scheduling:} \texttt{static} es la mejor política para Jacobi
+        por su carga perfectamente equilibrada; \texttt{dynamic} y
+        \texttt{guided} añaden hasta un 37\,\% de sobrecarga innecesaria.
+  \item \textbf{Reduction vs.\,critical:} ambas estrategias son
+        prácticamente equivalentes, con diferencias inferiores al~1\,\%.
+\end{enumerate}
+% AUTO_CONCLUSIONS_END
+
+Como trabajo futuro se propone combinar v3 y v4 (SIMD+OpenMP) y estudiar el
+impacto del \textit{thread binding} (\texttt{OMP\_PROC\_BIND}) sobre la coherencia
+de caché en entornos NUMA.
+
+%%=============================================================
+\begin{thebibliography}{9}
+
+\bibitem{saad2003}
+  Y.~Saad,
+  \textit{Iterative Methods for Sparse Linear Systems}, 2nd~ed.
+  SIAM, Philadelphia, 2003.
+
+\bibitem{intel_intrinsics}
+  Intel Corporation,
+  \textit{Intel Intrinsics Guide},
+  \url{https://www.intel.com/content/www/us/en/docs/intrinsics-guide/},
+  \newblock [online] última visita marzo 2026.
+
+\bibitem{openmp30}
+  OpenMP Architecture Review Board,
+  \textit{OpenMP API v3.0 Summary Spec},
+  \url{https://www.openmp.org/wp-content/uploads/OpenMP3.0-SummarySpec.pdf},
+  noviembre 2008.
+
+\bibitem{patterson}
+  D.~A.~Patterson y J.~L.~Hennessy,
+  \textit{Computer Organization and Design}, 5th~ed.
+  Morgan Kaufmann, 2014.
+
+\end{thebibliography}
+
+\end{document}
